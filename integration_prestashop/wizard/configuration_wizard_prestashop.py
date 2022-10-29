@@ -12,30 +12,32 @@ API_YES = 'yes'
 API_NOT_USED = 'not_used'
 
 USED_RESOURCES = {
-    'addresses': '1000',  # GET, PUT, POST, DELETE
-    'carriers': '1000',
-    'categories': '1111',
-    'combinations': '1111',
-    'countries': '1000',
-    'customers': '1000',
-    'currencies': '1000',
-    'images': '1111',
-    'languages': '1000',
-    'messages': '1000',
-    'orders': '1000',
-    'order_carriers': '1100',
-    'order_details': '1000',
-    'order_states': '1000',
-    'order_payments': '1000',
-    'products': '1111',
-    'product_options': '1111',
-    'product_option_values': '1111',
-    'product_features': '1111',
-    'product_feature_values': '1111',
-    'states': '1000',
-    'stock_availables': '1100',
-    'taxes': '1000',
-    'tax_rule_groups': '1000',
+    'addresses': '10001',  # GET, PUT, POST, DELETE, REQUIRED
+    'carriers': '10001',
+    'categories': '11111',
+    'combinations': '11111',
+    'configurations': '10001',
+    'countries': '10001',
+    'customers': '10001',
+    'currencies': '10001',
+    'images': '11111',
+    'languages': '10001',
+    'messages': '10001',
+    'orders': '10001',
+    'order_carriers': '11001',
+    'order_details': '10001',
+    'order_states': '10001',
+    'order_payments': '10001',
+    'products': '11111',
+    'product_options': '11111',
+    'product_option_values': '11111',
+    'product_features': '11111',
+    'product_feature_values': '11111',
+    'states': '10001',
+    'stock_availables': '11001',
+    'taxes': '10001',
+    'tax_rule_groups': '10001',
+    'webhooks': '10110',
 }
 
 
@@ -92,6 +94,18 @@ class QuickConfigurationPrestashop(models.TransientModel):
         copy=False,
         help='Sub-status that can be set after cancelled SO',
     )
+    run_action_on_shipping_so = fields.Boolean(
+        string='Run Action on Shipping SO',
+        help='Select if you would like run action on shipping SO.',
+    )
+
+    sub_status_shipped_id = fields.Many2one(
+        comodel_name='sale.order.sub.status',
+        string='Shipped Orders Sub-Status',
+        domain='[("integration_id", "=", integration_id)]',
+        copy=False,
+        help='Sub-status that can be set after shipped SO',
+    )
 
     # Step Url
     def run_before_step_url(self):
@@ -141,9 +155,12 @@ class QuickConfigurationPrestashop(models.TransientModel):
     # Step Order Status
     def run_before_step_order_status(self):
         self.integration_id.integrationApiImportSaleOrderStatuses()
+
         self.run_action_on_cancel_so = self.integration_id.run_action_on_cancel_so
-        self.sub_status_cancel_id = \
-            self.integration_id.sub_status_cancel_id
+        self.sub_status_cancel_id = self.integration_id.sub_status_cancel_id
+
+        self.run_action_on_shipping_so = self.integration_id.run_action_on_shipping_so
+        self.sub_status_shipped_id = self.integration_id.sub_status_shipped_id
 
     def run_after_step_order_status(self):
         if not self.order_status_ids:
@@ -157,11 +174,12 @@ class QuickConfigurationPrestashop(models.TransientModel):
         self.integration_id.set_settings_value('receive_orders_filter', receive_filter)
 
         self.integration_id.run_action_on_cancel_so = self.run_action_on_cancel_so
+        self.integration_id.run_action_on_shipping_so = self.run_action_on_shipping_so
 
-        self.integration_id.sub_status_cancel_id = \
-            self.sub_status_cancel_id
+        self.integration_id.sub_status_cancel_id = self.sub_status_cancel_id
+        self.integration_id.sub_status_shipped_id = self.sub_status_shipped_id
 
-        if self.sub_status_cancel_id:
+        if self.sub_status_cancel_id or self.sub_status_shipped_id:
             self.integration_id.export_sale_order_status_job_enabled = True
 
         return True
@@ -173,7 +191,10 @@ class QuickConfigurationPrestashop(models.TransientModel):
         resources = self.integration_id._build_adapter().get_api_resources()
         default_vals = dict(configuration_wizard_id=self.id)
 
-        def get_availability(res_name, res_used, method_name):
+        def get_setting_value(res_name, res_used, method_name):
+            if method_name == 'required':
+                return API_YES if unsafe_eval(res_used) else API_NO
+
             if not unsafe_eval(res_used):
                 return API_NOT_USED
 
@@ -184,10 +205,11 @@ class QuickConfigurationPrestashop(models.TransientModel):
             values = {
                 **default_vals,
                 'resource_name': resource_name,
-                'method_get': get_availability(resource_name, usage[0], 'get'),
-                'method_put': get_availability(resource_name, usage[1], 'put'),
-                'method_post': get_availability(resource_name, usage[2], 'post'),
-                'method_delete': get_availability(resource_name, usage[3], 'delete'),
+                'method_get': get_setting_value(resource_name, usage[0], 'get'),
+                'method_put': get_setting_value(resource_name, usage[1], 'put'),
+                'method_post': get_setting_value(resource_name, usage[2], 'post'),
+                'method_delete': get_setting_value(resource_name, usage[3], 'delete'),
+                'method_required': get_setting_value(resource_name, usage[4], 'required'),
             }
             values_list.append(values)
 
@@ -197,8 +219,10 @@ class QuickConfigurationPrestashop(models.TransientModel):
         self.run_before_step_api()
 
         if self.configuration_api_ids.filtered(
-                lambda x: (x.method_get == 'no' or x.method_put == 'no'
-                           or x.method_post == 'no' or x.method_delete == 'no')):
+                lambda x: (x.method_required == API_YES
+                           and (API_NO in (
+                                x.method_get, x.method_put, x.method_post, x.method_delete
+                                )))):
             raise UserError(_('You should grant access to all required Prestashop resources'))
 
         return True
@@ -261,4 +285,8 @@ class QuickConfigurationPrestashopApi(models.TransientModel):
     method_delete = fields.Selection(
         selection=_get_api_method_usage,
         string='DELETE',
+    )
+    method_required = fields.Selection(
+        selection=_get_api_method_usage,
+        string='Required',
     )

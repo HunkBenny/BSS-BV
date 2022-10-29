@@ -47,6 +47,8 @@
                         <field name="order_status_ids" widget="many2many_tags" options="{'no_create': True}"/>
                         <field name="run_action_on_cancel_so" />
                         <field name="sub_status_cancel_id" attrs="{'required' : [('run_action_on_cancel_so', '=', True)]}"/>
+                        <field name="run_action_on_shipping_so" />
+                        <field name="sub_status_shipped_id" attrs="{'required' : [('run_action_on_shipping_so', '=', True)]}"/>
                     </group>
                     <group name="step_api" states="step_api">
                         <div colspan="2">
@@ -57,6 +59,7 @@
                                     <field name="method_put" widget="badge" decoration-success="method_put == 'yes'" decoration-danger="method_put == 'no'"/>
                                     <field name="method_post" widget="badge" decoration-success="method_post == 'yes'" decoration-danger="method_post == 'no'"/>
                                     <field name="method_delete" widget="badge" decoration-success="method_delete == 'yes'" decoration-danger="method_delete == 'no'"/>
+                                    <field name="method_required" widget="badge" decoration-success="method_required == 'yes'" decoration-danger="method_required == 'no'"/>
                                 </tree>
                             </field>
                         </div>

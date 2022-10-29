@@ -1,22 +1,20 @@
 #  See LICENSE file for full copyright and licensing details.
 
-import pytz
-
+from ..prestashop_api import PrestaShopApiClient, PRESTASHOP
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
-from ..prestashop_api import PrestaShopApiClient
+from odoo.addons.integration.models.sale_integration import DATETIME_FORMAT
 
-
-DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+import pytz
 
 
 class SaleIntegration(models.Model):
     _inherit = 'sale.integration'
 
     type_api = fields.Selection(
-        selection_add=[('prestashop', 'PrestaShop')],
+        selection_add=[(PRESTASHOP, 'PrestaShop')],
         ondelete={
-            'prestashop': 'cascade',
+            PRESTASHOP: 'cascade',
         },
     )
 
@@ -58,12 +56,53 @@ class SaleIntegration(models.Model):
         default='Delivery in {} days',
     )
 
+    subscribed_to_newsletter_id = fields.Many2one(
+        string='Newsletter Subscribed field on Customer',
+        comodel_name='ir.model.fields',
+        help='Define here field name belonging to Customer (only Boolean fields accepted)'
+             ' where integration will get Customer Subscribed to Newsletter for Prestashop field '
+             'Newsletter Subscribed.',
+        domain='[("model_id.model", "=", "res.partner"), ("ttype", "=", "boolean")]',
+        default=lambda self: self._get_field_for_set_default('subscribed_to_newsletter_presta'),
+    )
+
+    newsletter_registration_date_id = fields.Many2one(
+        string='Newsletter Registration Date field on Customer',
+        comodel_name='ir.model.fields',
+        help='Define here field name belonging to Customer (only Datetime fields accepted)'
+             'where integration will get Customer Newsletter Registration Date for '
+             'Prestashop field Newsletter Registration Date.',
+        domain='[("model_id.model", "=", "res.partner"), ("ttype", "=", "datetime")]',
+        default=lambda self: self._get_field_for_set_default('newsletter_registration_date_presta'),
+    )
+
+    customer_registration_date_id = fields.Many2one(
+        string='Registration Date field on Customer',
+        comodel_name='ir.model.fields',
+        help='Define here field name belonging to Customer (only Datetime fields accepted)'
+             'where integration will get Customer Registration Date for '
+             'Prestashop field Registration Date.',
+        domain='[("model_id.model", "=", "res.partner"), ("ttype", "=", "datetime")]',
+        default=lambda self: self._get_field_for_set_default('customer_registration_date_presta'),
+    )
+
+    def is_carrier_tracking_required(self):
+        if self.is_prestashop():
+            return True
+        return super(SaleIntegration, self).is_carrier_tracking_required()
+
+    def _get_field_for_set_default(self, field_name):
+        return self.env['ir.model.fields'].search([
+            ('model_id.model', '=', 'res.partner'),
+            ('name', '=', field_name),
+        ], limit=1)
+
     @api.depends('last_receive_orders_datetime')
     def _compute_presta_last_receive_orders_datetime(self):
         for integration in self:
             value = ''
 
-            if integration.type_api == 'prestashop':
+            if integration.type_api == PRESTASHOP:
                 ps_timezone = integration.get_settings_value('PS_TIMEZONE')
                 if ps_timezone:
                     timezone = pytz.timezone(ps_timezone)
@@ -76,7 +115,7 @@ class SaleIntegration(models.Model):
 
     def is_prestashop(self):
         self.ensure_one()
-        return self.type_api == 'prestashop'
+        return self.type_api == PRESTASHOP
 
     def get_class(self):
         self.ensure_one()
@@ -96,6 +135,17 @@ class SaleIntegration(models.Model):
             self.set_settings_value('PS_TIMEZONE', ps_timezone)
 
         return result
+
+    def _retrieve_webhook_routes(self):
+        if self.is_prestashop():
+            routes = {
+                'orders': [
+                    ('Order Created', 'actionValidateOrder'),
+                    ('Order Status Updated', 'actionOrderHistoryAddAfter'),
+                ],
+            }
+            return routes
+        return super(SaleIntegration, self)._retrieve_webhook_routes()
 
     def convert_external_tax_to_odoo(self, tax_id):
         if not self.is_prestashop():
@@ -126,3 +176,24 @@ class SaleIntegration(models.Model):
         )
 
         return odoo_tax
+
+    def get_parent_delivery_methods(self, not_mapped_id):
+        adapter = self._build_adapter()
+        data = adapter.get_parent_delivery_methods(not_mapped_id)
+
+        return data
+
+    def _should_link_parent_contact(self):
+        if self.is_prestashop():
+            # For Prestashop we currently do not link parent partner
+            # TODO: To review later, need to be careful with existing customers
+            return False
+        return super(SaleIntegration, self)._should_link_parent_contact()
+
+    def _fetch_external_carrier(self, carrier_data):
+        if self.is_prestashop():
+            adapter = self._build_adapter()
+            carrier = adapter.get_single_carrier(carrier_data['id'])
+            return carrier
+
+        return super(SaleIntegration, self)._fetch_external_carrier(carrier_data)

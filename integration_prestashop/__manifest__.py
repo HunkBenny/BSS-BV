@@ -7,7 +7,7 @@
                " Update order status and provide tracking numbers to your customers; "
                "all this automatically and instantly!",
     'category': 'Sales',
-    'version': '15.0.1.6.0',
+    'version': '15.0.1.8.2',
     'images': ['static/description/images/banner.gif'],
     'author': 'VentorTech',
     'website': 'https://ventor.tech',
@@ -25,6 +25,7 @@
         'views/sale_integration.xml',
         'views/external/integration_product_public_category_external_views.xml',
         'wizard/configuration_wizard_prestashop.xml',
+        'views/res_partner_views.xml',
     ],
     'demo': [
     ],

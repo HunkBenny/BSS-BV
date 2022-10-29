@@ -8,7 +8,7 @@
 
     Note that on odoo.sh you will need to add requirements.txt file to the root of your repository with the following content. So additional Python libraries will be installed. On your own instance you will just need to install them manually via pip install command
 
-    | ``git+https://github.com/prestapyt/prestapyt.git@ff9cfa7ef6fe473b63ede2482801793ec2196e2f``
+    | ``git+https://github.com/prestapyt/prestapyt.git@f9898b4245611b487e4592f601a22a07de0a26cc``
     | ``Cerberus==1.3.2``
 
 |
@@ -22,7 +22,7 @@
 
 |
 
-3. Special note for deploying to odoo.sh (`also showed on video <https://youtu.be/-mToY8rOcCA>`__):
+3. Special note for deploying to odoo.sh (`also shown on the video <https://youtu.be/-mToY8rOcCA>`__):
 
 -  Config file can be found when entering shell in the following location "/home/odoo/.config/odoo/odoo.conf". Add there the following configs:
 
@@ -39,6 +39,15 @@
 
 4. Then follow steps from this video to make an initial configuration of our Odoo PrestaShop connector (`video <https://youtu.be/4sop_8WYMWw>`__)
 
+|
+
+Feedback
+##########
+
+- In case of any issues, please contact us at support@ventor.tech
+- Don't forget to share your experience after you go live :)
+
+  | (only person who made a purchase, can leave ratings)
 
 |
 
@@ -47,12 +56,57 @@ Change Log
 
 |
 
+* 1.8.2 (2022-10-28)
+    - Fixed Feature Value creation
+    - Fixed “Import External Records“ running for Product Variants from Jobs
+    - Fixed calculation of discount in Odoo if there are several taxes in sales order
+
+* 1.8.1 (2022-10-18)
+    - Import customers functionality was not working with all queue_job module versions
+
+* 1.8.0 (2022-10-10)
+    - NEW! Allow exporting of product quantities both in real-time and by cron. Make it configurable on the “Inventory“ tab on sales integration.
+    - NEW! Allow defining which field should be synchronized when sending the stock to the e-Commerce system. Allowing 3 options: “Free To Use Quantity“, “On Hand Quantity” and  “Forecasted Quantity”.
+    - NEW! Implemented wizard allowing to import customers based on the last update date.
+    - NEW! Implementing Gift Wrap synchronization from Prestashop to Odoo as a separate line in sales orders.
+    - NEW! Added setting to allow automatic creation of Delivery Carrier and Taxes in Odoo if the existing mapping is not found (during initial import and during Sales Order Import).
+    - Fix issue with auto-workflow failing in some cases when SO status is changing on webhook.
+    - When an order is created with an existing partner make sure to also emulate the selection of partner on the Odoo interface so needed fields from the partner will be filled in (Payment Terms, Fiscal Positions and etc.) 
+    - TECHNICAL! Improve the retry mechanism for importing products and executing workflow actions to workaround concurrent update errors in some cases (e.g. sales order was not auto-confirmed and remained in draft state)
+    - Do not create webhooks automatically in case integration is activated. Users need to do it manually by clicking the “Create Webhooks“ button on “Webhooks“ tab inside integration.
+    - Set the proper fiscal position on automatic order import according to Fiscal Position settings.
+    - Improved manual mapping of product variants and product templates in case template has only 1 variant.
+
+* 1.7.1 (2022-09-08)
+    - Added possibility to specify additional field where Sales Order reference from Prestashop will be added (for example "Client Reference" field on SO) `(watch video) <https://youtu.be/Fmx80pKh4Vc>`__.
+    - Fix synchronization of newsletter subscription status
+    - Sales Order date is now set equal to Order creation date from the Prestashop
+    - Improve functionality for partners creation (first search partner by full address, before creating a new one)
+
+* 1.7.0 (2022-09-05)
+    - **NEW!** Major feature. Introduced auto workflow that allows based on sales order status: to validate sales order, create and validate invoice for it and register payment on created invoice. Configuration is flexible and can be done individually for every SO status `(watch video) <https://youtu.be/DEskoCQ-4Ek>`__.
+    - **NEW!** Added automatic creation of Webhooks to track Order Status change on the Prestashop side. Requires paid third-party module from Prestashop addons webshop “Webhooks integration Module“ Link to module https://addons.prestashop.com/en/third-party-data-integrations-crm-erp/48921-webhooks-integration.html `(watch video) <https://youtu.be/cqXjQ6_4I24>`__.
+    - **NEW!** Auto-cancel Sales Order on Odoo side when Order is Cancelled on Prestashop side. Requires paid third-party module from Prestashop addons webshop “Webhooks integration Module“ (see link above) `(watch video) <https://youtu.be/uIJc7pzoFzs>`__.
+    - **NEW!** Change Sales Order sub-status to "Shipped" when all transfers related to it are "Done" or "Cancelled" `(watch video) <https://youtu.be/-j5pdsHS9z4>`__.
+    - **NEW!** Save to Odoo newsletter subscription status for the customer (is subscribed?,  date of subscription, date of user Registration). Only set during first customer creation. `(watch video) <https://youtu.be/WfdN3FhFYaE>`__.
+    - **NEW!** Separate functionality of products mapping (trying to map with existing Odoo Product) from products import (trying to map and if not found create product in Odoo) `(watch video) <https://youtu.be/hNqCVyv5fcY>`__.
+    - Allow to disable export of product images from Odoo to Prestashop (checkbox on Integration form -> "Product Defaults" tab)
+    - When carrier details are changed on Prestashop side, no need to add mapping of delivery carrier again in Odoo.
+    - During creation of sales order if mapping for product was not found trying to auto-map by reference OR barcode with existing Odoo Product before failing creation of sales order.
+    - Send tracking numbers only when sales order is fully shipped (all related pickings are either "done" or "cancelled" and there are at least some delivered items).
+    - Import from Prestashop to Odoo only Feature Values that are connected to some Feature.
+    - Fix issue with synchronizing records (features, attributes and etc) with special symbols in their name ("%", "_" , etc.)
+    - Fix issue with impossibility to import orders with deleted customer (set "Default Customer" on Sale Integration -> "Sale Order Details" tab)
+    - TECHNICAL: Added possibility to easier extend product search criteria (for importing and validating products).
+    - TECHNICAL: Updated prestapyt library to new version 0.11.1 to remove deprecated warnings for Python 3 (See requirements.txt file in the module)
+    - TECHNICAL Improved Performance to allow importing of 150 000+ products from Prestashop.
+
 * 1.6.0 (2022-07-21)
-    - NEW! Automatically Cancel order on Prestashop when it is marked as Cancelled on Odoo side.
-    - NEW! Product Features: Synchronize from Prestashop to Odoo during initial import.
-    - NEW! Product Features: Sync from Odoo to Prestashop (when changing/creating on Odoo side).
-    - NEW! Synchronise Optional Products from Odoo to Prestashop (requires to add Optional Products field to fields mapping).
-    - NEW! Add possibility to synchronize optional products from Odoo to Prestashop.
+    - **NEW!** Automatically Cancel order on Prestashop when it is marked as Cancelled on Odoo side.
+    - **NEW!** Product Features: Synchronize from Prestashop to Odoo during initial import `(watch video) <https://www.youtube.com/watch?v=6ucwcLhhOlw>`__.
+    - **NEW!** Product Features: Sync from Odoo to Prestashop (when changing/creating on Odoo side) `(watch video) <https://www.youtube.com/watch?v=6ucwcLhhOlw>`__.
+    - **NEW!** Synchronise Optional Products from Odoo to Prestashop (requires to add Optional Products field to fields mapping) `(watch video) <https://www.youtube.com/watch?v=6ucwcLhhOlw>`__.
+    - **NEW!** Add possibility to synchronize optional products from Odoo to Prestashop `(watch video) <https://www.youtube.com/watch?v=6ucwcLhhOlw>`__.
     - Search only for active combinations when validating Prestashop products for duplicates.
     - When creating sales order from Prestashop, also set current sales order status as it is in Presta.
     - Fix issue with product validation results when Prestashop admin URL cannot be opened (if contains uppercase letters).
@@ -60,8 +114,8 @@ Change Log
     - Added the ability to work both with the Manufacturing module and without it.
     - Added the ability to work both with the eCommerce module and without it.
     - Add possibility to Synchronize Products Cost Price from Odoo to Prestashop.
-    - Improve categories synchronisation (automatically sync parent categories together with child, remove Root category from initial synchronisation as it is useless).
-    - TECHNICAL: Added possibility to easily extend module for adding custom fields.
+    - Improve categories synchronisation (automatically sync parent categories together with child, remove Root category from initial synchronisation as it is useless) `(watch video) <https://www.youtube.com/watch?v=XNNHPlNPoLk>`__.
+    - TECHNICAL: Added possibility to easily extend module for adding custom fields `(watch video) <https://www.youtube.com/watch?v=sBXCKvOdQ9w>`__.
     - Validate Countries and States for duplicates and if any found, then show error message with list of all problematic countries/states.
 
 * 1.5.5 (2022-06-16)

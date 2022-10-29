@@ -16,6 +16,7 @@ class Client(PrestaShopWebServiceDict):
 
     default_language_id = None
     id_group_shop = None
+    data_block_size = None
     shop_ids = []
 
     classes = {
@@ -57,6 +58,7 @@ class Client(PrestaShopWebServiceDict):
             id_group_shop=self.id_group_shop,
             shop_ids=self.shop_ids,
             default_language_id=self.default_language_id,
+            data_block_size=self.data_block_size,
         )
         instance._name = name  # TODO: bad
 

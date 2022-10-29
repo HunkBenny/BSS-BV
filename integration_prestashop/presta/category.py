@@ -1,6 +1,6 @@
 #  See LICENSE file for full copyright and licensing details.
 
-from .base_model import BaseModel
+from .base_model import BaseModel, PRESTASHOP
 from odoo.addons.integration.tools import IS_TRUE
 
 import re
@@ -24,7 +24,7 @@ class Category(BaseModel):
             categories['category']['id_parent'] = vals['parent_id']
 
         result = self._client.add('categories', categories)
-        category_id = result['prestashop']['category']['id']
+        category_id = result[PRESTASHOP]['category']['id']
 
         return self.get(category_id)
 

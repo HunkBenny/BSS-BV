@@ -1,6 +1,7 @@
 # See LICENSE file for full copyright and licensing details.
 
 import json
+import itertools
 import logging
 from decimal import Decimal
 from collections import defaultdict, Counter
@@ -16,10 +17,12 @@ from odoo.exceptions import UserError
 from odoo.tools import frozendict
 from ..integration.exceptions import ApiImportError
 
-from . import presta
+from .presta import Client, PRESTASHOP  # noqa
 from .presta.base_model import BaseModel
 
+
 _logger = logging.getLogger(__name__)
+
 
 PRODUCT_TYPE_MAP = {
     'simple': 'product',
@@ -72,7 +75,7 @@ class PrestaShopApiClient(AbsApiClient):
             admin_url += '/index.php'
         self.admin_url = admin_url
 
-        self._client = presta.Client(
+        self._client = Client(
             api_url,
             api_key,
         )
@@ -90,6 +93,7 @@ class PrestaShopApiClient(AbsApiClient):
         self._client.default_language_id = self._language_id
         self._client.id_group_shop = id_group_shop
         self._client.shop_ids = shop_ids
+        self._client.data_block_size = self._settings['data_block_size']
 
     def check_connection(self):
         resources = self._client.get('')
@@ -106,6 +110,41 @@ class PrestaShopApiClient(AbsApiClient):
         )
 
         return delivery_methods
+
+    def get_single_carrier(self, external_id):
+        carrier = self._client.model('carrier').search_read(
+            filters={'id': external_id},
+            fields=['id', 'name'],
+        )
+        return carrier and carrier[0] or dict()
+
+    def get_parent_delivery_methods(self, not_mapped_id):
+        id_reference = self._client.model('carrier').search_read(
+            filters={'id': not_mapped_id},
+            fields=['id_reference'],
+        )
+        reference = id_reference and id_reference[0]
+        if not reference:
+            return False
+        family_delivery_methods = self._client.model('carrier').search_read(
+            filters={'id_reference': reference['id_reference']},
+            fields=['id', 'name'],
+        )
+        return family_delivery_methods
+
+    def get_configuration(self, name):
+        value = self._client.model('configuration').search_read(
+            filters={'name': '[%s]' % name},
+            fields=['value'],
+            skip_translation=True,
+        )
+
+        return value and value[0] if isinstance(value, list) else value
+
+    def get_single_tax(self, tax_id):
+        taxes = self.get_taxes()
+        tax_list = [x for x in taxes if x['id'] == tax_id]
+        return tax_list and tax_list[0] or dict()
 
     def get_taxes(self):
         """Will return the following list:
@@ -381,7 +420,8 @@ class PrestaShopApiClient(AbsApiClient):
 
     def get_feature_values(self):
         product_feature_values = self._client.get(
-            'product_feature_values', options={'display': '[id,value,id_feature]'}
+            resource='product_feature_values',
+            options={'display': '[id,value,id_feature]', 'filter[id_feature]': '![0]'},
         )['product_feature_values']
 
         if not product_feature_values:
@@ -437,50 +477,108 @@ class PrestaShopApiClient(AbsApiClient):
 
         return order_states
 
-    def get_product_templates(self):
-        import_products_filter = json.loads(self.get_settings_value('import_products_filter'))
+    def get_product_template_ids(self):
+        template_ids = self._client.model('product').search_read_by_blocks(
+            filters=self._get_product_filter_hook(),
+            fields=self._get_product_fields_hook(['id']),
+        )
+
+        template_ids = self._filter_templates_hook(template_ids)
+
+        return template_ids and [x['id'] for x in template_ids] or []
+
+    def get_product_templates(self, template_ids):
         product_templates = self._client.model('product').search_read(
-            filters=import_products_filter,
-            fields=['id', 'name', 'reference'],
+            filters={'id': '[%s]' % '|'.join(template_ids)},
+            fields=['id', 'name', 'reference', 'ean13'],
+        )
+
+        product_variants = self._client.model('combination').search_read(
+            filters={'id_product': '[%s]' % '|'.join(template_ids)},
         )
 
         for product_template in product_templates:
             reference = product_template['reference'] if product_template['reference'] else None
-            product_template.update({'external_reference': reference})
+            product_template.update({
+                'external_reference': reference,
+                'barcode': product_template['ean13'],
+                'variants': [],
+            })
 
-        return product_templates
-
-    def get_product_variants(self):
-        product_variants = self._client.model('combination').search_read(
-            filters={},
-            fields=['id', 'id_product', 'reference'],
-        )
-
-        # We should import variants only for active products
-        import_products_filter = json.loads(self.get_settings_value('import_products_filter'))
-        product_templates = self._client.model('product').search_read(
-            filters=import_products_filter,
-            fields=['id', 'name'],
-        )
-
-        product_ids = {x['id']: x['name'] for x in product_templates}
-
-        result = []
+        result = {x['id']: x for x in product_templates}
 
         for product_variant in product_variants:
-            if (product_variant['id_product'] in product_ids):
+            product = result.get(product_variant['id_product'])
+            if product:
                 reference = product_variant['reference'] if product_variant['reference'] else None
+                attribute_value_ids = product_variant.get('associations', {})\
+                    .get('product_option_values', {}).get('product_option_value', [])
 
-                result += [{
+                if not isinstance(attribute_value_ids, list):
+                    attribute_value_ids = [attribute_value_ids]
+
+                product['variants'].append({
                     'id': '{product_id}-{combination_id}'.format(**{
                         'product_id': product_variant['id_product'],
                         'combination_id': product_variant['id'],
                     }),
-                    'name': product_ids[product_variant['id_product']],
+                    'name': product['name'],
                     'external_reference': reference,
                     'ext_product_template_id': product_variant['id_product'],
-                }]
+                    'barcode': product_variant['ean13'],
+                    'attribute_value_ids': [x['id'] for x in attribute_value_ids],
+                })
 
+        return result
+
+    def get_customer_ids(self, date_since=None):
+        customer_ids = self._client.model('customer').search_read_by_blocks(
+            filters=date_since and {'date_upd': '>[%s]' % date_since},
+            fields=['id'],
+            date='1',
+        )
+
+        return customer_ids and [x['id'] for x in customer_ids] or []
+
+    def get_customer_and_addresses(self, customer_id):
+        customer = self._client.get('customers', customer_id)['customer']
+        addresses = self._client.model('address').search_read(
+            filters={'id_customer': '[%s]' % customer_id}
+        )
+
+        if not isinstance(addresses, list):
+            addresses = [addresses]
+
+        parsed_customer = self._parse_customer(customer)
+        parsed_addresses = [self._parse_address(customer, x) for x in addresses]
+
+        return parsed_customer, parsed_addresses
+
+    def create_webhooks_from_routes(self, routes_dict):
+        result = dict()
+
+        for name_tuple, route in routes_dict.items():
+            webhook = self._client.model('webhook')
+
+            webhook.url = route
+            webhook.hook = name_tuple[-1]  # --> technical_name
+            webhook.real_time = IS_TRUE
+            webhook.active = IS_TRUE
+            webhook.retries = 0
+
+            webhook.save()
+            result[name_tuple] = str(webhook.id)
+
+        return result
+
+    def unlink_existing_webhooks(self, external_ids=None):
+        if not external_ids:
+            return False
+
+        webhooks = self._client.model('webhook').search({
+            'id': '[%s]' % '|'.join(external_ids)
+        })
+        result = webhooks.delete()
         return result
 
     def export_category(self, category):
@@ -586,23 +684,15 @@ class PrestaShopApiClient(AbsApiClient):
             product_refs = [str(product_refs)]
 
         reference_filter = {'reference': '[%s]' % '|'.join(product_refs)}
-        template_filter_dict = json.loads(self.get_settings_value('import_products_filter'))
-        template_filter = {
-            **template_filter_dict,
-            **reference_filter,
-        }
-        ids_set = set()
-        product = self._client.model('product').search_read(
-            filters=template_filter,
-            fields=['id', 'name', 'reference'],
-        )
-        ids_set.update([str(x['id']) for x in product])
-        product_combination = self._client.model('combination').search_read(
-            filters=reference_filter,
-            fields=['id', 'id_product', 'reference'],
-        )
-        ids_set.update([str(x['id_product']) for x in product_combination])
+        product_fields = ['id', 'name', 'reference']
+        combination_fields = ['id', 'id_product', 'reference']
+        templates, variants = self._get_products_and_variants(product_fields,
+                                                              combination_fields,
+                                                              reference_filter)
 
+        ids_set = set()
+        ids_set.update([str(x['id']) for x in templates])
+        ids_set.update([str(x['id_product']) for x in variants])
         return ids_set
 
     def validate_template(self, template):
@@ -1008,17 +1098,21 @@ class PrestaShopApiClient(AbsApiClient):
     def _get_input_file_data(self, order_id):
         order = self._client.get('orders', order_id)['order']
 
-        customer = self._client.get(
-            'customers', order['id_customer']
-        )['customer']
+        try:
+            customer = self._client.get('customers', order['id_customer'])['customer']
+        except PrestaShopWebServiceError:
+            customer = {}
 
-        delivery_address = self._client.get(
-            'addresses', order['id_address_delivery']
-        )['address']
+        try:
+            delivery_address = self._client.get(
+                'addresses', order['id_address_delivery'])['address']
+        except PrestaShopWebServiceError:
+            delivery_address = {}
 
-        invoice_address = self._client.get(
-            'addresses', order['id_address_invoice']
-        )['address']
+        try:
+            invoice_address = self._client.get('addresses', order['id_address_invoice'])['address']
+        except PrestaShopWebServiceError:
+            invoice_address = {}
 
         input_file_data = {
             'order': order,
@@ -1031,6 +1125,19 @@ class PrestaShopApiClient(AbsApiClient):
         return input_file_data
 
     def _get_carrier_tax_ids(self, carrier_id, country_id, state_id, postcode):
+        if not carrier_id or carrier_id == IS_FALSE:
+            return list(), IS_FALSE
+
+        tax_rule_group = self._client.model('carrier').search_read(
+            filters={'id': carrier_id},
+            fields=['id_tax_rules_group'],
+        )
+
+        tax_rule_group_id = tax_rule_group and tax_rule_group[0]['id_tax_rules_group']['value']
+
+        return self._get_taxes_by_tax_rule(tax_rule_group_id, country_id, state_id, postcode)
+
+    def _get_taxes_by_tax_rule(self, tax_rule_group_id, country_id, state_id, postcode):
         # Based on https://github.com/
         #     PrestaShop/PrestaShop/blob/develop/classes/tax/TaxRulesTaxManager.php#L74
 
@@ -1038,21 +1145,12 @@ class PrestaShopApiClient(AbsApiClient):
         #     '0' - this tax only
         #     '1' - combine
         #     '2' - one after another
-
-        tax_ids = list()
         first_row = True
         behavior = IS_FALSE
+        tax_ids = list()
 
-        if not carrier_id or not country_id or carrier_id == IS_FALSE or country_id == IS_FALSE:
-            return tax_ids, behavior
-
-        tax_rule_group = self._client.model('carrier').search_read(
-            filters={'id': carrier_id},
-            fields=['id_tax_rules_group'],
-        )
-        tax_rule_group_id = tax_rule_group and tax_rule_group[0]['id_tax_rules_group']['value']
-
-        if not tax_rule_group_id or tax_rule_group_id == IS_FALSE:
+        if not tax_rule_group_id or not country_id \
+                or tax_rule_group_id == IS_FALSE or country_id == IS_FALSE:
             return tax_ids, behavior
 
         tax_rules = self._client.get(
@@ -1151,28 +1249,28 @@ class PrestaShopApiClient(AbsApiClient):
 
         carrier_tax_ids, carrier_tax_behavior = self._get_carrier_tax_ids(
             order['id_carrier'],
-            delivery_address['id_country'],
-            delivery_address['id_state'],
-            delivery_address['postcode'],
+            delivery_address.get('id_country'),
+            delivery_address.get('id_state'),
+            delivery_address.get('postcode'),
+        )
+        wrapping_tax_ids, wrapping_tax_behavior = self._get_taxes_by_tax_rule(
+            self.get_configuration('PS_GIFT_WRAPPING_TAX_RULES_GROUP'),
+            delivery_address.get('id_country'),
+            delivery_address.get('id_state'),
+            delivery_address.get('postcode'),
         )
 
         parsed_order = {
             'id': order['id'],
             'ref': order['reference'],
             'current_order_state': order['current_state'],
-            'customer': {
-                'id': customer['id'],
-                'person_name': ' '.join([customer['firstname'], customer['lastname']]),
-                'email': customer['email'],
-                'language': customer['id_lang'],
-            },
+            'date_order': order['date_add'],
+            'integration_workflow_states': [order['current_state']],
             'currency': currency.get('iso_code', ''),
-            'shipping': self._parse_address(customer, delivery_address),
-            'billing': self._parse_address(customer, invoice_address),
             'lines': [self._parse_order_row(order['id'], x) for x in order_rows],
             'payment_method': order['payment'],
             'payment_transactions': payment_transactions,
-            'carrier': order['id_carrier'],
+            'carrier': {'id': order['id_carrier'], 'name': ''},
             'shipping_cost': float(order['total_shipping']),
             'shipping_cost_tax_excl': float(order['total_shipping_tax_excl']),
             'delivery_notes': delivery_notes,
@@ -1180,25 +1278,56 @@ class PrestaShopApiClient(AbsApiClient):
             'total_discounts_tax_excl': float(order['total_discounts_tax_excl']),
             'amount_total': (
                 float(order['total_products_wt']) + float(order['total_shipping_tax_incl'])
-                - float(order['total_discounts_tax_incl'])
+                + float(order['total_wrapping_tax_incl']) - float(order['total_discounts_tax_incl'])
             ),
             'carrier_tax_rate': float(order['carrier_tax_rate']),
             'carrier_tax_ids': carrier_tax_ids,
             'carrier_tax_behavior': carrier_tax_behavior,  # TODO: what we have to do with that..
+            'recycled_packaging': order['recyclable'] == '1',  # TODO: add option to order in future
+            'gift_wrapping': order['gift'] == '1',
+            'gift_message': order['gift_message'],
+            'total_wrapping_tax_incl': float(order['total_wrapping_tax_incl']),
+            'total_wrapping_tax_excl': float(order['total_wrapping_tax_excl']),
+            'wrapping_tax_ids': wrapping_tax_ids,
+            'wrapping_tax_behavior': wrapping_tax_behavior,  # TODO: what we have to do with that..
         }
+
+        if customer:
+            parsed_order['customer'] = self._parse_customer(customer)
+
+        if delivery_address:
+            parsed_order['shipping'] = self._parse_address(customer, delivery_address)
+
+        if invoice_address:
+            parsed_order['billing'] = self._parse_address(customer, invoice_address)
 
         return parsed_order
 
-    def _parse_address(self, customer, address):
+    @staticmethod
+    def _parse_customer(customer):
+        return {
+            'id': customer['id'],
+            'person_name': ' '.join([customer['firstname'], customer['lastname']]),
+            'email': customer['email'],
+            'language': customer['id_lang'],
+            'newsletter': customer['newsletter'],
+            'newsletter_date_add': customer['newsletter_date_add'],
+            'customer_date_add': customer['date_add'],
+        }
+
+    @staticmethod
+    def _parse_address(customer, address):
         """
         we add customer id to address id to distinguish them from each other
         """
 
-        return {
-            'id': '%s-%s' % (customer['id'], address['id']),
+        if not address:
+            return {}
+
+        address = {
+            'id': '',
             'person_name': ' '.join([address['firstname'], address['lastname']]),
-            'email': customer['email'],
-            'language': customer['id_lang'],
+            'email': customer.get('email', ''),
             'person_id_number': address['dni'],
             'company_name': address['company'],
             'company_reg_number': address['vat_number'],
@@ -1211,6 +1340,11 @@ class PrestaShopApiClient(AbsApiClient):
             'phone': address['phone'],
             'mobile': address['phone_mobile'],
         }
+
+        if customer.get('id_lang'):
+            address['language'] = customer.get('id_lang')
+
+        return address
 
     def _parse_order_row(self, order_id, row):
         filter_criteria = {
@@ -1265,18 +1399,18 @@ class PrestaShopApiClient(AbsApiClient):
             stock.quantity = int(inventory_item['qty'])
             stock.save()
 
-    def export_tracking(self, tracking_data):
-        order_id = tracking_data['sale_order_id']
-        tracking = tracking_data['tracking']
+    def export_tracking(self, sale_order_id, tracking_data_list):
+        tracking = ', '.join(set([x['tracking'] for x in tracking_data_list]))
 
         order_carrier = self._client.model('order_carrier').search({
-            'id_order': order_id,
+            'id_order': sale_order_id,
         })
 
         # TODO: check with integrational test
 
         order_carrier.tracking_number = tracking
-        order_carrier.save()
+        result = order_carrier.save()
+        return result
 
     def export_sale_order_status(self, order_id, status):
         order = self._client.model('order').get(order_id)
@@ -1455,6 +1589,79 @@ class PrestaShopApiClient(AbsApiClient):
 
         return template, variants, bom_components, images_hub
 
+    def _get_product_fields_hook(self, fields):
+        # This method exists to extend amount of fields that are retrieved
+        # from Prestashop API. So additional logic can be added
+        fields_list = fields
+        if 'id' not in fields_list:
+            fields_list.append('id')
+        return fields_list
+
+    def _get_product_filter_hook(self, search_filter=None):
+        # This method exists to extend filter criteria for products
+        # for Prestashop API. So additional logic can be added
+        kwargs = search_filter or dict()
+        import_products_filter = json.loads(self.get_settings_value('import_products_filter'))
+        product_filter_dict = {
+            **import_products_filter,
+            **kwargs,
+        }
+        return product_filter_dict
+
+    def _get_combination_fields_hook(self, fields):
+        # This method exists to extend amount of fields that are retrieved
+        # from Prestashop API. So additional logic can be added
+        fields_list = fields
+        if 'id' not in fields_list:
+            fields_list.append('id')
+        if 'id_product' not in fields_list:
+            fields_list.append('id_product')
+        return fields_list
+
+    def _get_combination_filter_hook(self, search_filter):
+        # This method exists to extend filter criteria for combinations
+        # for Prestashop API. So additional logic can be added
+        if not isinstance(search_filter, dict):
+            search_filter = {}
+        return search_filter
+
+    def _filter_templates_hook(self, templates):
+        # This method is a hooks that allows to additionally filter products
+        # by some non-standard logic. Designed for extension in sub-classes
+        return templates
+
+    def _get_products_and_variants(self, product_fields, combination_fields, product_filter):
+
+        template_ids = self._client.model('product').search_read_by_blocks(
+            filters=self._get_product_filter_hook(product_filter),
+            fields=self._get_product_fields_hook(product_fields),
+        )
+
+        template_ids = self._filter_templates_hook(template_ids)
+
+        active_template_ids = [x['id'] for x in template_ids]
+
+        variant_ids = self._client.model('combination').search_read_by_blocks(
+            filters=self._get_combination_filter_hook(product_filter),
+            fields=self._get_combination_fields_hook(combination_fields),
+        )
+
+        # If we were searching by some criteria we have to double check now if found combinations
+        # correspond to product template search criteria (usually it is {'active': 1})
+        if product_filter and variant_ids:
+            tmpl_ids_filter = {'id': '[%s]' % '|'.join([x['id_product'] for x in variant_ids])}
+            active_templates = self._client.model('product').search_read(
+                filters=self._get_product_filter_hook(tmpl_ids_filter),
+                fields=self._get_product_fields_hook(['id']),
+            )
+            active_templates = self._filter_templates_hook(active_templates)
+            # create list of ids
+            active_template_ids = [x['id'] for x in active_templates]
+
+        variant_ids = [x for x in variant_ids if x['id_product'] in active_template_ids]
+
+        return template_ids, variant_ids
+
     def get_templates_and_products_for_validation_test(self, product_refs=None):
         """Presta allows different references for for template and its single variant."""
         if product_refs and not isinstance(product_refs, list):
@@ -1480,39 +1687,12 @@ class PrestaShopApiClient(AbsApiClient):
                 'parent_id': str(),
                 'skip_ref': False,
             }
-        import_products_filter = json.loads(self.get_settings_value('import_products_filter'))
-        template_filter_dict = {
-            **import_products_filter,
-            **reference_filter_mixin,
-        }
-        template_ids = self._client.model('product').search_read(
-            filters=template_filter_dict,
-            fields=['id', 'ean13', 'reference'],
-        )
 
-        active_template_ids = [x['id'] for x in template_ids]
-
-        variant_ids = self._client.model('combination').search_read(
-            filters=reference_filter_mixin,
-            fields=['id', 'id_product', 'reference', 'ean13'],
-        )
-
-        # If we were searching for product refs we have to double check now if found combinations
-        # correspond to product template search criteria (usually it is {'active': 1}
-        if product_refs and variant_ids:
-            tmpl_ids_filter = {'id': '[%s]' % '|'.join([x['id_product'] for x in variant_ids])}
-            active_templates_filter = {
-                **import_products_filter,
-                **tmpl_ids_filter,
-            }
-            active_template_ids = self._client.model('product').search_read(
-                filters=active_templates_filter,
-                fields=['id'],
-            )
-            # create list of ids
-            active_template_ids = [x['id'] for x in active_template_ids]
-
-        variant_ids = [x for x in variant_ids if x['id_product'] in active_template_ids]
+        product_fields = ['id', 'ean13', 'reference']
+        combination_fields = ['id', 'id_product', 'reference', 'ean13']
+        template_ids, variant_ids = self._get_products_and_variants(product_fields,
+                                                                    combination_fields,
+                                                                    reference_filter_mixin)
 
         products_data = defaultdict(list)
         for tmpl in template_ids:
@@ -1531,7 +1711,7 @@ class PrestaShopApiClient(AbsApiClient):
                 for tmpl_dict in filter(lambda x: not x['parent_id'], product_list):
                     tmpl_dict['skip_ref'] = True
 
-        return TemplateHub(sum(products_data.values(), []))
+        return TemplateHub(list(itertools.chain.from_iterable(products_data.values())))
 
     def get_products_for_accessories(self):
         _logger.info('Prestashop: get_products_for_accessories()')
@@ -1540,10 +1720,8 @@ class PrestaShopApiClient(AbsApiClient):
         external_data = list()
         template_router = defaultdict(set)
 
-        import_products_filter = json.loads(self.get_settings_value('import_products_filter'))
-
-        templates = self._client.model('product').search_read(  # TODO: by batch!!!
-            filters=import_products_filter,
+        templates = self._client.model('product').search_read_by_blocks(
+            filters=self._get_product_filter_hook(),
         )
 
         for template in templates:
@@ -1574,7 +1752,7 @@ class PrestaShopApiClient(AbsApiClient):
         return external_data, template_router
 
     def get_stock_levels(self):
-        stock_available = self._client.model('stock_available').search_read(
+        stock_available = self._client.model('stock_available').search_read_by_blocks(
             filters=None,
             fields=['id_product', 'id_product_attribute', 'quantity'],
         )
@@ -1597,4 +1775,25 @@ class PrestaShopApiClient(AbsApiClient):
     def _convert_to_html(self, id_list):
         pattern = '<li><a href="%s/sell/catalog/products/%s" target="_blank">%s</a></li>'
         arg_list = [(self.admin_url, x.split('-')[0], x) for x in id_list]
-        return [pattern % args for args in arg_list]
+        return ''.join([pattern % args for args in arg_list])
+
+    @staticmethod
+    def _get_bad_request_webhook_message():
+        url = 'https://addons.prestashop.com/en/third-party-data-integrations-crm-erp/' \
+              '48921-webhooks-integration.html'
+        href_to_module = f'<a href="{url}" target="_blank">' + _('Webhook Integration') + '<a/>'
+        message = _(
+            'By default, Prestashop does not have webhooks functionality. '
+            'Webhooks can be added only via 3rd party modules. We at VentorTech '
+            'investigated available solutions on the Prestashop addons market '
+            'and found that this %s module is suitable for '
+            'this. Also, we communicated with the developers of this module and '
+            'asked them to include in their plugin a few changes that are needed '
+            'for our connector. So in order to use webhooks functionality with '
+            'Prestashop, you need: '
+            '<br/> (1) to purchase and install specified module '
+            '<br/> (2) In Prestashop admin in the menu '
+            '"Advanced Parameters → Webservice" for your API Key add '
+            'permissions for "webhooks" resource.'
+        ) % href_to_module
+        return message

@@ -1,8 +1,8 @@
 #  See LICENSE file for full copyright and licensing details.
 
-import base64
+from .base_model import BaseModel, PRESTASHOP
 
-from .base_model import BaseModel
+import base64
 
 
 class Image(BaseModel):
@@ -13,7 +13,7 @@ class Image(BaseModel):
         result = self._client.add('images/products/' + str(self._product_id), files=[
             ('image', name, base64.b64decode(data))
         ], options=self._id_group_shop_options)
-        return result['prestashop']['image']['id']
+        return result[PRESTASHOP]['image']['id']
 
     def delete(self):
         product_images_full_url = (

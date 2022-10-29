@@ -1,5 +1,13 @@
 #  See LICENSE file for full copyright and licensing details.
+
 from copy import deepcopy
+import logging
+
+
+_logger = logging.getLogger(__name__)
+
+
+PRESTASHOP = 'prestashop'
 
 
 class BaseModel:
@@ -17,10 +25,12 @@ class BaseModel:
         id_group_shop=None,
         shop_ids=None,
         default_language_id=None,
+        data_block_size=None,
     ):
         self._ids = []
         self._to_update = {}
         self._default_language_id = default_language_id
+        self._data_block_size = data_block_size
         self._lang_fields = []
         self._lang_id = []
 
@@ -99,7 +109,7 @@ class BaseModel:
                 self._plural_name,
                 vals,
                 options=self._id_group_shop_options,
-            )['prestashop'][self._name]
+            )[PRESTASHOP][self._name]
 
             new_id = result['id']
             self.id = new_id
@@ -133,7 +143,7 @@ class BaseModel:
 
         return result
 
-    def search_read(self, filters, fields=None, limit=None, sort=None, skip_translation=False):
+    def search_read(self, filters, fields=None, skip_translation=False, **kwargs):
         if filters is None:
             filters = {}
 
@@ -148,11 +158,8 @@ class BaseModel:
                 ','.join(str(x) for x in fields),
             )
 
-        if limit:
-            options['limit'] = limit
-
-        if sort:
-            options['sort'] = sort
+        if kwargs:
+            options.update(kwargs)
 
         data = self._client.get(
             self._plural_name,
@@ -174,6 +181,29 @@ class BaseModel:
                             record[key] = value['language']['value']
 
         return data
+
+    def search_read_by_blocks(self, filters, fields=None, skip_translation=False, **kwargs):
+        response = []
+        last = 0
+        step = self._data_block_size
+        while True:
+            res = self.search_read(
+                filters=filters,
+                fields=fields,
+                skip_translation=skip_translation,
+                limit='%d,%d' % (last, step),
+                **kwargs,
+            )
+            last += step
+            response += res
+
+            _logger.info('PrestaShop: model "%s" method "search_read_by_blocks" '
+                         'records received: %d' % (self._name, len(response)))
+
+            if not res:
+                break
+
+        return response
 
     def refresh(self):
         data = self.read()

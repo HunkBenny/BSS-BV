@@ -7,18 +7,21 @@
             <field name="model">sale.integration</field>
             <field name="inherit_id" ref="integration.view_sale_integration_form" />
             <field name="arch" type="xml">
-                <xpath expr="//page[3]" position="after">
-                    <page string="Product Defaults"
-                          name="product_dafault_page"
-                          attrs="{'invisible': [('type_api', '!=', 'prestashop')]}">
+                <field name="allow_export_images" position="after">
+                    <field name="product_delivery_in_stock" attrs="{'invisible': [('type_api', '!=', 'prestashop')]}" />
+                    <field name="message_templame_in_stock" attrs="{'invisible': [('type_api', '!=', 'prestashop')]}" />
+                    <field name="product_delivery_out_of_stock" attrs="{'invisible': [('type_api', '!=', 'prestashop')]}" />
+                    <field name="message_templame_out_of_stock" attrs="{'invisible': [('type_api', '!=', 'prestashop')]}" />
+                </field>
+                <page name="customer_default_page" position="inside">
+                    <group>
                         <group>
-                            <field name="product_delivery_in_stock" />
-                            <field name="message_templame_in_stock" />
-                            <field name="product_delivery_out_of_stock" />
-                            <field name="message_templame_out_of_stock" />
+                            <field name="subscribed_to_newsletter_id" attrs="{'invisible': ['|', ('id', '=', False), ('type_api', '!=', 'prestashop')]}"/>
+                            <field name="newsletter_registration_date_id" attrs="{'invisible': ['|', ('id', '=', False), ('type_api', '!=', 'prestashop')]}"/>
+                            <field name="customer_registration_date_id" attrs="{'invisible': ['|', ('id', '=', False), ('type_api', '!=', 'prestashop')]}"/>
                         </group>
-                    </page>
-                </xpath>
+                    </group>
+                </page>
             </field>
         </record>
     </data>
