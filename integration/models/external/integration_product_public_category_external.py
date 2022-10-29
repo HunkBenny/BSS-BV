@@ -2,6 +2,7 @@
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+from odoo.tools.sql import escape_psql
 
 import logging
 
@@ -14,6 +15,7 @@ class IntegrationProductPublicCategoryExternal(models.Model):
     _description = 'Integration Product Public Category External'
     _rec_name = 'complete_name'
     _order = 'complete_name'
+    _odoo_model = 'product.public.category'
 
     parent_id = fields.Many2one(
         comodel_name=_name,
@@ -49,9 +51,10 @@ class IntegrationProductPublicCategoryExternal(models.Model):
                 external_parent_record = self_router.get(parent_id, False)
                 rec.parent_id = external_parent_record
 
-    def try_map_by_external_reference(self, odoo_model, odoo_search_domain=False):
+    def try_map_by_external_reference(self, odoo_search_domain=False):
         self.ensure_one()
 
+        odoo_model = self.odoo_model
         reference_field_name = getattr(odoo_model, '_internal_reference_field', None)
 
         # If we found existing mapping, we do not need to do anything
@@ -65,21 +68,22 @@ class IntegrationProductPublicCategoryExternal(models.Model):
 
         odoo_object = None
         if self.name:
-            odoo_object = odoo_model.search([(reference_field_name, '=ilike', self.name)])
+            odoo_object = odoo_model.search(
+                [(reference_field_name, '=ilike', escape_psql(self.name))])
             if len(odoo_object) > 1:
                 # If found more than one object we need to skip
                 odoo_object = None
 
         odoo_model.create_or_update_mapping(self.integration_id, odoo_object, self)
 
-    @api.model
-    def fix_unmapped(self, integration):
-        ProductPublicCategory = self.env['product.public.category']
+    def _fix_unmapped(self, adapter_external_data):
+        ProductPublicCategory = self.odoo_model
 
         if ProductPublicCategory.search([]):
             return
 
         category_mappings = []
+        integration = self.integration_id
         external_values = integration._build_adapter().get_categories()
 
         # Create categories
@@ -135,22 +139,20 @@ class IntegrationProductPublicCategoryExternal(models.Model):
     def import_category(self, external_values):
         self.ensure_one()
 
-        ProductCategory = self.env['product.public.category']
-        MappingCategory = self.env['integration.product.public.category.mapping']
+        ProductCategory = self.odoo_model
+        MappingCategory = self.mapping_model
 
         # Try to find existing and mapped category
-        mapping = MappingCategory.search([('external_public_category_id', '=', self.id)])
+        mapping = MappingCategory.search([
+            ('external_public_category_id', '=', self.id),
+        ])
 
         # If mapping doesn`t exists try to find category by the name
         if not mapping or not mapping.public_category_id:
-            odoo_category = ProductCategory.search([('name', '=ilike', self.name)])
-
-            if len(odoo_category) > 1:
-                raise UserError(_('There are several public categories with name "%s"') % self.name)
-
-            if odoo_category:
-                raise UserError(_('Public category with name "%s" already exists') % self.name)
+            self._check_similar_in_odoo()
+            odoo_category = ProductCategory
         else:
+            assert len(mapping) == 1, _('Expected one mapping to one external record.')
             odoo_category = mapping.public_category_id
 
         # in case we only receive 1 record its not added to list as others
@@ -192,3 +194,28 @@ class IntegrationProductPublicCategoryExternal(models.Model):
 
                 if child_mapping and child_mapping.public_category_id:
                     child_mapping.public_category_id.parent_id = odoo_category
+
+    def _check_similar_in_odoo(self):
+        odoo_category = self.odoo_model.search([
+            ('name', '=ilike', escape_psql(self.name)),
+        ])
+
+        if odoo_category:
+            external_complete_name = self.complete_name
+            odoo_category_records = odoo_category.browse()
+
+            for category in odoo_category:
+                odoo_parent_path = '/ '.join(category.parents_and_self.mapped('name'))
+
+                if odoo_parent_path == external_complete_name:
+                    odoo_category_records |= category
+
+            if len(odoo_category_records) == 1:
+                message = _('Public category with name "%s" already exists') % self.name
+            elif len(odoo_category_records) > 1:
+                message = _('There are several public categories with name "%s"') % self.name
+            else:
+                message = False
+
+            if message:
+                raise UserError(message)

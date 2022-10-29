@@ -1,10 +1,11 @@
 # See LICENSE file for full copyright and licensing details.
 
-from ...exceptions import ApiImportError
+from ...exceptions import ApiImportError, NotMappedToExternal, NotMappedFromExternal
 from ...tools import IS_FALSE
 from odoo import models, fields, _
 from odoo.exceptions import ValidationError
 from odoo.tools.image import IMAGE_MAX_RESOLUTION
+from odoo.tools.sql import escape_psql
 
 import base64
 import logging
@@ -20,6 +21,7 @@ class IntegrationProductTemplateExternal(models.Model):
     _name = 'integration.product.template.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Product Template External'
+    _odoo_model = 'product.template'
 
     external_product_variant_ids = fields.One2many(
         comodel_name='integration.product.product.external',
@@ -33,10 +35,11 @@ class IntegrationProductTemplateExternal(models.Model):
             integration = external_template.integration_id
             integration = integration.with_context(company_id=integration.company_id.id)
 
-            integration.with_delay(description='Import Product').import_product(
-                external_template,
-                import_images=import_images,
+            integration = integration.with_delay(
+                description='Import Single Product (auto-match + create Odoo product)'
             )
+
+            integration.import_product(external_template, import_images=import_images)
 
         plural = ('', 'is') if len(self) == 1 else ('s', 'are')
 
@@ -66,7 +69,7 @@ class IntegrationProductTemplateExternal(models.Model):
             self.external_reference = template.default_code
         if not self.name:
             self.name = template.name
-        product_map = self._mapping_products(template, ext_products)
+        product_map = self._try_to_map_products(template, ext_products)
         self._update_products(ext_products, product_map, ext_images)
         self._create_boms(template, ext_bom_components)
 
@@ -106,7 +109,7 @@ class IntegrationProductTemplateExternal(models.Model):
         # Then let's try to find Odoo template by internal reference
         if not odoo_template and tmpl_ref:
             odoo_template = ProductTemplate.search([
-                ('default_code', '=ilike', tmpl_ref),
+                ('default_code', '=ilike', escape_psql(tmpl_ref)),
             ])
 
             if len(odoo_template) > 1:
@@ -140,13 +143,13 @@ class IntegrationProductTemplateExternal(models.Model):
             product = self._find_product_by_field('default_code',
                                                   _('Internal Reference'),
                                                   '=ilike',
-                                                  variant_ref)
+                                                  escape_psql(variant_ref))
 
             if not product and variant_barcode:
                 product = self._find_product_by_field('barcode',
                                                       _('Barcode'),
                                                       '=like',
-                                                      variant_barcode)
+                                                      escape_psql(variant_barcode))
 
             if not product:
                 variants_templates_dict[variant_ref] = ProductTemplate
@@ -405,13 +408,14 @@ class IntegrationProductTemplateExternal(models.Model):
 
         return template
 
-    def _mapping_products(self, template, ext_products):
+    def _try_to_map_products(self, template, ext_products):
         """
         :return: {'49-174': product.product(393,), '49-175': product.product(394,)}
         """
         integration = self.integration_id
         ProductProduct = self.env['product.product']
         ProductProductExternal = self.env['integration.product.product.external']
+        ProductProductMapping = self.env['integration.product.product.mapping']
 
         external_products = ProductProductExternal.search([
             ('integration_id', '=', integration.id),
@@ -446,29 +450,29 @@ class IntegrationProductTemplateExternal(models.Model):
             })
             existing_external_codes[code] = external
 
-        product_ids = ProductProduct.search([
-            ('product_tmpl_id', '=', template.id),
-        ])
+        product_ids = template and template.product_variant_ids or ProductProduct
 
         # A: single variant
         if len(ext_products) <= 1:
             code = external_codes[0] if ext_products else default_ext_code
             external = existing_external_codes[code]
 
-            assert len(product_ids) == 1
+            assert len(product_ids) == 1 or not template
+
             ProductProduct.create_or_update_mapping(integration, product_ids, external)
             return {
                 external.code: product_ids,
             }
 
         # B: multiple variants
-        product_mappings = self.env['integration.product.product.mapping'].search([
-            ('integration_id', '=', integration.id),
-            ('product_id', 'in', product_ids.ids),
-        ])
+        if product_ids:
+            product_mappings = ProductProductMapping.search([
+                ('integration_id', '=', integration.id),
+                ('product_id', 'in', product_ids.ids),
+            ])
 
         code_product = dict()
-        # Find existing mappings
+        # Find existing variants and mapping it
         for product_id in product_ids:
             external = product_mappings\
                 .filtered(lambda x: x.product_id == product_id).external_product_id
@@ -507,6 +511,14 @@ class IntegrationProductTemplateExternal(models.Model):
             if external:
                 ProductProduct.create_or_update_mapping(integration, product_id, external)
                 code_product[external.code] = product_id
+
+        # Create empty mappings
+        for external in existing_external_codes.values():
+            if not ProductProductMapping.search([
+                ('integration_id', '=', integration.id),
+                ('external_product_id', '=', external.id),
+            ]):
+                ProductProduct.create_or_update_mapping(integration, None, external)
 
         return code_product
 
@@ -608,3 +620,39 @@ class IntegrationProductTemplateExternal(models.Model):
                 'bom_line_ids': bom_line_ids,
                 'type': 'phantom',
             })
+
+    def try_map_template_and_variants(self, ext_template):
+        self.ensure_one()
+        ext_products = [
+            {
+                'default_code': x.get('external_reference'),
+                'barcode': x.get('barcode'),
+                'variant_id': x.get('id'),
+                'attribute_value_ids': x.get('attribute_value_ids'),
+            }
+            for x in ext_template.get('variants', [])
+        ]
+
+        ext_template = {
+            'default_code': ext_template['external_reference'],
+            'barcode': ext_template['barcode'],
+        }
+
+        ProductTemplate = self.env['product.template']
+
+        odoo_template = ProductTemplate.from_external(
+            self.integration_id,
+            self.code,
+            raise_error=False
+        )
+
+        try:
+            if not odoo_template:
+                odoo_template = self._try_to_find_odoo_template(ext_template, ext_products)
+
+                ProductTemplate.create_or_update_mapping(
+                    self.integration_id, odoo_template, self)
+
+            self._try_to_map_products(odoo_template, ext_products)
+        except (ApiImportError, NotMappedToExternal, NotMappedFromExternal):
+            pass

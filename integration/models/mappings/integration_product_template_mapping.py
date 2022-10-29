@@ -1,6 +1,10 @@
 # See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
+import logging
+
+
+_logger = logging.getLogger(__name__)
 
 
 class IntegrationProductTemplateMapping(models.Model):
@@ -35,9 +39,63 @@ class IntegrationProductTemplateMapping(models.Model):
         if products_external:
             return products_external.run_import_products(import_images)
 
-    def _retrieve_external_vals(self, integration, odoo_value, code):
-        res = super(IntegrationProductTemplateMapping, self)\
-            ._retrieve_external_vals(integration, odoo_value, code)
+    def _auto_mapping_product_product(self):
+        """
+        Auto mapping product_product
+        """
+        self.ensure_one()
 
-        # res['external_reference'] = odoo_value.default_code  # TODO
+        product_product_mapping = self.get_product_mapping_from_parent_external()
+        if not product_product_mapping or \
+                self._check_product_identity(product_product_mapping) or \
+                len(product_product_mapping) > 1:
+            _logger.info('Auto mapping of the product_product did not happen')
+            return False
+
+        if self.template_id:
+            product_product_mapping.product_id = self.template_id.product_variant_id
+            _logger.info('Auto mapping product_product %s',
+                         product_product_mapping.product_id.name)
+        else:
+            product_product_mapping.product_id = False
+            _logger.info('Auto zeroing product_product %s',
+                         product_product_mapping.product_id.name)
+        return True
+
+    def write(self, vals):
+        res = super(IntegrationProductTemplateMapping, self).write(vals)
+        for rec in self:
+            if 'template_id' in vals and rec._context.get('product_template_mapping'):
+                rec._auto_mapping_product_product()
         return res
+
+    def get_product_mapping_from_parent_external(self):
+        """
+        Get product_product_mapping
+        """
+        self.ensure_one()
+
+        ProductProductMapping = self.env['integration.product.product.mapping']
+        product_product_external = self.external_template_id.external_product_variant_ids
+        if len(product_product_external) != 1:
+            return False
+
+        product_product_mapping_id = ProductProductMapping.search([
+            ('integration_id', '=', self.integration_id.id),
+            ('external_product_id', '=', product_product_external.id),
+        ])
+
+        return product_product_mapping_id
+
+    def _check_product_identity(self, product_product_mapping):
+        """
+        Check product identity
+        """
+        self.ensure_one()
+        result = False
+
+        if product_product_mapping and self.template_id:
+            if self.template_id.product_variant_id == product_product_mapping.product_id:
+                result = True
+
+        return result

@@ -10,3 +10,4 @@ class IntegrationSaleOrderLineExternal(models.Model):
     _name = 'integration.sale.order.line.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Sale Order Line External'
+    _odoo_model = 'sale.order.line'

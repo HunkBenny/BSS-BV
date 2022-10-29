@@ -1,6 +1,7 @@
 # See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields
+from odoo.tools import float_compare
 
 
 class StockPicking(models.Model):
@@ -29,9 +30,9 @@ class StockPicking(models.Model):
             lines.append(line)
 
         result = {
-            'sale_order_id': self.sale_id.to_external(integration),
             'tracking': self.carrier_tracking_ref,
             'lines': lines,
+            'name': self.name,
         }
 
         if self.carrier_id:
@@ -39,37 +40,68 @@ class StockPicking(models.Model):
 
         return result
 
-    def write(self, vals):
-        res = super(StockPicking, self).write(vals)
+    def to_export_format_multi(self, integration):
+        tracking_data = list()
 
-        if res:
-            done_pickings_with_tracking = (
-                self
-                # only send for Done pickings that were not exported yet
-                # and if this is final Outgoing picking OR dropship picking
-                .filtered(lambda x: x.state == 'done' and not x.tracking_exported
-                          and (x.picking_type_id.id
-                               == x.picking_type_id.warehouse_id.out_type_id.id
-                               or
-                               ('is_dropship' in self.env['stock.picking']._fields
-                                and x.is_dropship
-                                )
-                               )
-                          )
-                # only send if tracking number field is non-empty
-                .filtered('carrier_tracking_ref')
-            )
+        for rec in self:
+            data = rec.to_export_format(integration)
+            tracking_data.append(data)
 
-            for picking in done_pickings_with_tracking:
-                integration = picking.sale_id.integration_id
-                if not integration:
-                    continue
+        return tracking_data
 
-                if not integration.job_enabled('export_tracking'):
-                    continue
+    def _auto_validate_picking(self):
+        """Set quantities automatically and validate the pickings."""
+        for picking in self:
+            picking.action_assign()
+            for move in picking.move_lines.filtered(
+                lambda m: m.state not in ['done', 'cancel']
+            ):
+                rounding = move.product_id.uom_id.rounding
+                if (
+                    float_compare(
+                        move.quantity_done,
+                        move.product_qty,
+                        precision_rounding=rounding,
+                    )
+                    == -1
+                ):
+                    for move_line in move.move_line_ids:
+                        move_line.qty_done = move_line.product_uom_qty
+            ctx = {
+                'skip_immediate': True,
+                'skip_sms': True,
+                'skip_export_tracking': True,
+            }
+            picking.with_context(**ctx).button_validate()
+        return True
 
-                key = f'export_tracking_{picking.id}'
-                integration = integration.with_context(company_id=integration.company_id.id)
-                integration.with_delay(identity_key=key).export_tracking(picking)
+    def button_validate(self):
+        """
+        Override button_validate method to called method, that check order is shipped or not.
+        """
+        res = super(StockPicking, self).button_validate()
+
+        if res is not True:
+            return res
+
+        self._run_integration_picking_hooks()
 
         return res
+
+    def action_cancel(self):
+        res = super(StockPicking, self).action_cancel()
+
+        if res is not True:
+            return res
+
+        self._run_integration_picking_hooks()
+
+        return res
+
+    def _run_integration_picking_hooks(self):
+        for order in self.mapped('sale_id'):
+            is_shipped = order.check_is_order_shipped()
+
+            if is_shipped:
+                order._shipped_order_hook()
+                order.order_export_tracking()

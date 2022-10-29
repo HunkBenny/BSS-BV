@@ -1,6 +1,7 @@
 # See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, api
+from odoo import fields, models, api, _
+from odoo.exceptions import UserError
 from ..exceptions import NotMappedToExternal
 
 import logging
@@ -172,3 +173,80 @@ class ProductProduct(models.Model):
 
     def _update_variant_form_architecture(self, form_data):
         return self.product_tmpl_id._update_template_form_architecture(form_data)
+
+    def action_force_export_inventory(self):
+        integrations = self.env['sale.integration'].search([('state', '=', 'active')])
+        self.export_inventory_by_jobs(integrations)
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Export Product Quantities to External'),
+                'message': 'Queue Jobs "Export Product Quantities to External" are created',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
+    def export_inventory_by_jobs(self, integrations, key=None):
+        block_size = int(self.env['ir.config_parameter'].sudo().get_param(
+            'integration.export_inventory_block_size'))
+
+        for integration in integrations:
+            products = self
+            block = 0
+
+            while products:
+                if key:
+                    identity_key = key + '.%s' % block
+                    block += 1
+
+                products[:block_size].with_context(company_id=integration.company_id.id).with_delay(
+                    description='Export Product Quantities to External',
+                    identity_key=key and identity_key or None,
+                ).export_inventory(integration)
+
+                products = products[block_size:]
+
+    def export_inventory(self, integrations):
+        """
+        invalidate cache for all product's qty_fields
+        it seems that odoo doesn't recompute qty_fields.
+        if we read qty_fields, then change it, then read again.
+        doesn't seem to be a real case
+        (usually export_inventory is done in single transaction).
+        added to fix test, but I don't think that it affects performance very much.
+        """
+        self.invalidate_cache(integrations.mapped('synchronise_qty_field'), self)
+
+        for integration in integrations:
+            inventory = {}
+
+            if not integration.location_ids:
+                raise UserError(
+                    _("Please, specify Inventory Locations on the 'Inventory' tab of "
+                      "the integration with name '%s'.") % integration.name
+                )
+
+            for product in self.filtered(lambda x: integration in x.integration_ids):
+                quantity = getattr(
+                    product.with_context(location=integration.location_ids.ids),
+                    integration.synchronise_qty_field
+                )
+
+                product_external = product.to_external_record(integration)
+
+                if product.company_id and product.company_id != integration.company_id:
+                    raise UserError(
+                        _('Company of the Product "%s" doesn\'t match Company of the '
+                          'Integration "%s".') % (product.name, integration.name)
+                    )
+
+                inventory[product_external.code] = {
+                    'qty': quantity,
+                    'external_reference': product_external.external_reference,
+                }
+
+            adapter = integration._build_adapter()
+            adapter.export_inventory(inventory)

@@ -1,10 +1,13 @@
 # See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields, _
+import logging
+
+from odoo.tools.sql import escape_psql
 from odoo.exceptions import UserError
+from odoo import models, fields, _
+
 from ...tools import IS_FALSE
 
-import logging
 
 _logger = logging.getLogger(__name__)
 
@@ -13,6 +16,7 @@ class IntegrationAccountTaxExternal(models.Model):
     _name = 'integration.account.tax.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Account Tax External'
+    _odoo_model = 'account.tax'
 
     external_tax_group_ids = fields.Many2many(
         comodel_name='integration.account.tax.group.external',
@@ -23,9 +27,28 @@ class IntegrationAccountTaxExternal(models.Model):
         readonly=True,
     )
 
-    def try_map_by_external_reference(self, odoo_model, odoo_search_domain=False):
+    def _fix_unmapped(self, adapter_external_data):
+        result = list()
+        mapping_model = self.mapping_model
+
+        for record, adapter_data in zip(self, adapter_external_data):
+            mapping = mapping_model.search([
+                ('external_tax_id', '=', record.id),
+                ('integration_id', '=', record.integration_id.id),
+            ], limit=1)
+
+            if not mapping:
+                continue
+
+            odoo_record = mapping._fix_unmapped_tax_one(external_data=adapter_data)
+            result.append(odoo_record)
+
+        return result
+
+    def try_map_by_external_reference(self, odoo_search_domain=False):
         self.ensure_one()
 
+        odoo_model = self.odoo_model
         # If we found existing mapping, we do not need to do anything
         if odoo_model.from_external(self.integration_id, self.code, raise_error=False):
             return
@@ -44,8 +67,8 @@ class IntegrationAccountTaxExternal(models.Model):
     def import_tax(self, external_values):
         self.ensure_one()
 
-        Tax = self.env['account.tax']
-        MappingTax = self.env['integration.account.tax.mapping']
+        Tax = self.odoo_model
+        MappingTax = self.mapping_model
 
         # Try to find existing and mapped tax
         mapping = MappingTax.search([('external_tax_id', '=', self.id)])
@@ -53,7 +76,7 @@ class IntegrationAccountTaxExternal(models.Model):
 
         # If mapping doesn`t exists try to find tax by the name
         if not mapping or not mapping.tax_id:
-            if Tax.search([('name', '=ilike', self.name)]):
+            if Tax.search([('name', '=ilike', escape_psql(self.name))]):
                 raise UserError(_('Tax with name "%s" already exists') % self.name)
         else:
             odoo_tax = mapping.tax_id

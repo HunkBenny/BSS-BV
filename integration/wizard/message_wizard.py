@@ -6,7 +6,7 @@ from odoo.tools import unsafe_eval
 
 class MessageWizard(models.TransientModel):
     _name = 'message.wizard'
-    _description = "Show Message"
+    _description = 'Show Message'
 
     message = fields.Text(
         string='Message',
@@ -15,6 +15,15 @@ class MessageWizard(models.TransientModel):
     message_html = fields.Html(
         string='HTML Message',
     )
+
+    def download_html(self):
+        vals = {
+            'type': 'ir.actions.act_url',
+            'name': 'Download Html',
+            'target': 'self',
+            'url': '/integration/messagewizard/export?res_id=%s' % self.id,
+        }
+        return vals
 
     def action_close(self):
         return {

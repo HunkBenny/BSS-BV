@@ -1,6 +1,7 @@
 # See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
 
 
 class ProductTemplateFeatureLine(models.Model):
@@ -25,3 +26,9 @@ class ProductTemplateFeatureLine(models.Model):
         required=True,
         domain="[('feature_id', '=', feature_id)]"
     )
+
+    @api.constrains('feature_id', 'feature_value_id')
+    def check_matching_feature_id(self):
+        for record in self:
+            if record.feature_id != record.feature_value_id.feature_id:
+                raise ValidationError(_('Feature Value must match Feature'))

@@ -10,3 +10,4 @@ class IntegrationResLangExternal(models.Model):
     _name = 'integration.res.lang.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Res Lang External'
+    _odoo_model = 'res.lang'

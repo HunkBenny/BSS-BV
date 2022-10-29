@@ -188,7 +188,7 @@ class QueueJob(models.Model):
         elif model == 'sale.order.payment.method':
             self.integration_id.integrationApiImportPaymentMethods()
         elif model == 'product.product':
-            self.integration_id.integrationApiImportProductsVariants()
+            self.integration_id.integrationApiImportProductsTemplate()
         elif model == 'product.public.category':
             self.integration_id.integrationApiImportCategories()
         elif model == 'product.template':

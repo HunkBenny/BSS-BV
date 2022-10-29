@@ -19,6 +19,7 @@
             <field name="name">Payment Methods</field>
             <field name="res_model">integration.sale.order.payment.method.external</field>
             <field name="view_mode">tree</field>
+            <field name="view_id" ref="integration_sale_order_payment_method_external_view_tree"/>
         </record>
 
     </data>

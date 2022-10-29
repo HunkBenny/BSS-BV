@@ -1,7 +1,9 @@
 # See LICENSE file for full copyright and licensing details.
 
-from odoo import models, api
 import logging
+
+from odoo import models, fields
+
 
 _logger = logging.getLogger(__name__)
 
@@ -10,11 +12,18 @@ class IntegrationSaleOrderPaymentMethodExternal(models.Model):
     _name = 'integration.sale.order.payment.method.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Sale Order Payment Method External'
+    _odoo_model = 'sale.order.payment.method'
+
+    payment_journal_id = fields.Many2one(
+        comodel_name='account.journal',
+        string='Payment Journal',
+        domain="[('type', 'in', ('cash', 'bank'))]",
+    )
 
     def unlink(self):
         # Delete all odoo payment methods also
         if not self.env.context.get('skip_other_delete', False):
-            payment_mapping_model = self.env['integration.sale.order.payment.method.mapping']
+            payment_mapping_model = self.mapping_model
             for external_payment_method in self:
                 payment_method_mappings = payment_mapping_model.search([
                     ('external_payment_method_id', '=', external_payment_method.id)
@@ -23,12 +32,11 @@ class IntegrationSaleOrderPaymentMethodExternal(models.Model):
                     mapping.payment_method_id.with_context(skip_other_delete=True).unlink()
         return super(IntegrationSaleOrderPaymentMethodExternal, self).unlink()
 
-    @api.model
-    def fix_unmapped(self, integration):
+    def _fix_unmapped(self, adapter_external_data):
         # Payment methods should be pre-created automatically in Odoo
-        payment_method_mapping_model = self.env['integration.sale.order.payment.method.mapping']
+        payment_method_mapping_model = self.mapping_model
         unmapped_payment_methods = payment_method_mapping_model.search([
-            ('integration_id', '=', integration.id),
+            ('integration_id', '=', self.integration_id.id),
             ('payment_method_id', '=', False),
         ])
 

@@ -1,6 +1,6 @@
 # See LICENSE file for full copyright and licensing details.
 
-from odoo import models, api, _
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
@@ -8,11 +8,84 @@ class IntegrationSaleSubStatusExternal(models.Model):
     _name = 'integration.sale.order.sub.status.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Sale Sub Status External'
+    _odoo_model = 'sale.order.sub.status'
+
+    validate_order = fields.Boolean(
+        string='Validate Order',
+    )
+    validate_picking = fields.Boolean(
+        string='Validate Picking',
+    )
+    create_invoice = fields.Boolean(
+        string='Create Invoice',
+    )
+    force_invoice_date = fields.Boolean(
+        string='Force Invoice Date',
+    )
+    invoice_journal_id = fields.Many2one(
+        comodel_name='account.journal',
+        string='Invoice Journal',
+        domain="[('type', '=', 'sale')]",
+    )
+    validate_invoice = fields.Boolean(
+        string='Validate Invoice',
+    )
+    register_payment = fields.Boolean(
+        string='Register Payment',
+    )
+
+    @staticmethod
+    def _get_workflow_task_list():
+        """Attention! Order matters!"""
+        return [
+            'validate_order',
+            'validate_picking',
+            'create_invoice',
+            'validate_invoice',
+            'register_payment',
+        ]
+
+    @api.onchange('validate_order')
+    def _onchange_validate_order(self):
+        if not self.validate_order:
+            self.validate_picking = False
+            self.create_invoice = False
+            self.force_invoice_date = False
+            self.invoice_journal_id = False
+            self.validate_invoice = False
+            self.register_payment = False
+
+    @api.onchange('create_invoice')
+    def _onchange_create_invoice(self):
+        if not self.create_invoice:
+            self.force_invoice_date = False
+            self.invoice_journal_id = False
+            self.validate_invoice = False
+            self.register_payment = False
+
+    @api.onchange('validate_invoice')
+    def _onchange_validate_invoice(self):
+        if not self.validate_invoice:
+            self.register_payment = False
+
+    def retrieve_active_workflow_tasks(self):
+        """
+        return: [(`task name`, `task active`, `task priority`), ...]
+        """
+        self.ensure_one()
+        task_list = self._get_workflow_task_list()
+
+        active_task_list = list()
+        for idx, task_name in enumerate(task_list, start=1):
+            task_enable = True if getattr(self, task_name) else False
+            active_task_list.append((task_name, task_enable, idx))
+
+        return active_task_list
 
     def unlink(self):
         # Delete all odoo statuses also
         if not self.env.context.get('skip_other_delete', False):
-            sub_status_mapping_model = self.env['integration.sale.order.sub.status.mapping']
+            sub_status_mapping_model = self.mapping_model
             for external_status in self:
                 sub_statuses_mappings = sub_status_mapping_model.search([
                     ('external_id', '=', external_status.id)
@@ -21,11 +94,10 @@ class IntegrationSaleSubStatusExternal(models.Model):
                     mapping.odoo_id.with_context(skip_other_delete=True).unlink()
         return super(IntegrationSaleSubStatusExternal, self).unlink()
 
-    @api.model
-    def fix_unmapped(self, integration):
+    def _fix_unmapped(self, adapter_external_data):
+        integration = self.integration_id
         # Order statuses should be pre-created automatically in Odoo
-        sub_status_mapping_model = self.env['integration.sale.order.sub.status.mapping']
-        unmapped_sub_statuses = sub_status_mapping_model.search([
+        unmapped_sub_statuses = self.mapping_model.search([
             ('integration_id', '=', integration.id),
             ('odoo_id', '=', False),
         ])
@@ -81,8 +153,8 @@ class IntegrationSaleSubStatusExternal(models.Model):
     def import_status(self, external_values):
         self.ensure_one()
 
-        OrderStatus = self.env['sale.order.sub.status']
-        MappingStatus = self.env['integration.sale.order.sub.status.mapping']
+        OrderStatus = self.odoo_model
+        MappingStatus = self.mapping_model
 
         # Try to find existing and mapped status
         mapping = MappingStatus.search([('external_id', '=', self.id)])

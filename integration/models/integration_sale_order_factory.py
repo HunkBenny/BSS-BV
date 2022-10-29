@@ -1,10 +1,19 @@
 # See LICENSE file for full copyright and licensing details.
 
-from ..exceptions import NotMappedFromExternal, ApiImportError
-from odoo import models, api, _
-from odoo.tools.float_utils import float_compare, float_is_zero, float_round
+from ..exceptions import ApiImportError
+from .sale_integration import DATETIME_FORMAT
 
 import logging
+from datetime import datetime
+from dateutil import parser
+
+from odoo import models, api, _
+from odoo.exceptions import UserError
+from odoo.tools.float_utils import float_compare, float_is_zero, float_round
+
+
+OTHER = 'other'
+
 
 _logger = logging.getLogger(__name__)
 
@@ -28,48 +37,39 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
     @api.model
     def _create_order(self, integration, order_data):
         order_vals = self._prepare_order_vals(integration, order_data)
-        if integration.default_sales_team_id:
-            order_vals['team_id'] = integration.default_sales_team_id.id
-
-        if integration.default_sales_person_id:
-            order_vals['user_id'] = integration.default_sales_person_id.id
 
         if integration.order_name_ref:
             order_vals['name'] = '%s/%s' % (integration.order_name_ref, order_data['ref'])
 
         order = self.env['sale.order'].create(order_vals)
+        order.onchange_partner_id()
+
+        # Configure dictionary with the default/force values after `onchange_partner_id()` method
+        values = {
+            'partner_invoice_id': order_vals['partner_invoice_id'],
+            'partner_shipping_id': order_vals['partner_shipping_id'],
+        }
+
+        if integration.default_sales_team_id:
+            values['team_id'] = integration.default_sales_team_id.id
+
+        if integration.default_sales_person_id:
+            values['user_id'] = integration.default_sales_person_id.id
 
         if not integration.order_name_ref:
-            order.name += '/%s' % order_data['ref']
+            values['name'] = '%s/%s' % (order.name, order_data['ref'])
 
-        if order_data['carrier']:
-            carrier = self.env['delivery.carrier'].from_external(
-                integration, order_data['carrier']
-            )
-            order.set_delivery_line(carrier, order_data['shipping_cost'])
+        fiscal_position = self.env['account.fiscal.position'].with_company(order.company_id)\
+            .get_fiscal_position(order.partner_id.id, order_vals['partner_shipping_id'])
+        values['fiscal_position_id'] = fiscal_position.id
 
-            delivery_line = order.order_line.filtered(lambda line: line.is_delivery)
+        order.write(values)
 
-            carrier_tax_ids = order_data.get('carrier_tax_ids')
+        # 1. Creating Delivery Line
+        self._create_delivery_line(integration, order, order_data)
 
-            if delivery_line and carrier_tax_ids:
-                delivery_tax_ids = self.env['account.tax']
-
-                for carrier_tax_id in carrier_tax_ids:
-                    delivery_tax_ids += self.env['account.tax'].from_external(
-                        integration, carrier_tax_id
-                    )
-
-                delivery_line.tax_id = delivery_tax_ids
-
-            if delivery_line and order_data.get('carrier_tax_rate') == 0:
-                if not all(x.amount == 0 for x in delivery_line.tax_id):
-                    delivery_line.tax_id = False
-
-            if delivery_line and 'shipping_cost_tax_excl' in order_data:
-                if not self._get_tax_price_included(delivery_line.tax_id):
-                    delivery_line.price_unit = order_data['shipping_cost_tax_excl']
-
+        # 2. Creating Discount Line.
+        # !!! It should be after Creating Delivery Line
         self._create_discount_line(
             integration,
             order,
@@ -77,7 +77,11 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
             order_data.get('total_discounts_tax_excl'),
         )
 
-        # Check difference of total order amount and correct it
+        # 3. Creating Gift Wrapping Line
+        self._create_gift_line(integration, order, order_data)
+
+        # 4. Check difference of total order amount and correct it
+        #    !!! This block must be the last !!!
         if order_data.get('amount_total', False):
             price_difference = float_round(
                 value=order_data['amount_total'] - order.amount_total,
@@ -123,6 +127,10 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
         payment_method = self._get_payment_method(integration, order_data['payment_method'])
 
         delivery_notes_field_name = integration.so_delivery_note_field.name
+        delivery_notes_value = order_data['delivery_notes']
+
+        if order_data.get('gift_wrapping') and order_data.get('gift_message'):
+            delivery_notes_value += _('\nMessage to write: %s') % order_data.get('gift_message')
 
         amount_total = order_data.get('amount_total', False)
 
@@ -138,17 +146,24 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
             'partner_invoice_id': billing.id if billing else False,
             'order_line': order_line,
             'payment_method_id': payment_method.id,
-            delivery_notes_field_name: order_data['delivery_notes'],
+            delivery_notes_field_name: delivery_notes_value,
         }
+
+        if integration.so_external_reference_field:
+            order_vals[integration.so_external_reference_field.name] = order_data['ref']
+
+        if order_data.get('date_order'):
+            date_order = order_data['date_order']
+            data_converted = parser.isoparse(date_order)
+            order_vals['date_order'] = datetime.strftime(data_converted, DATETIME_FORMAT)
 
         current_state = order_data.get('current_order_state')
         if current_state:
             sub_status = self._get_order_sub_status(
-                integration, current_state,
+                integration,
+                current_state,
             )
-            order_vals.update({
-                'sub_status_id': sub_status.id,
-            })
+            order_vals['sub_status_id'] = sub_status.id
 
         pricelist = self._get_order_pricelist(integration, order_data)
         if pricelist:
@@ -212,90 +227,224 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
 
     @api.model
     def _create_customer(self, integration, order_data):
-        customer = self._create_partner(integration, order_data['customer'])
-        customer.customer_rank = 1
+        customer = False
+        shipping = False
+        billing = False
 
-        shipping = self._create_partner(integration, order_data['shipping'], 'delivery')
+        if order_data.get('customer'):
+            customer = self._fetch_odoo_partner(
+                integration,
+                order_data['customer'],
+            )
 
-        billing = self._create_partner(integration, order_data['billing'], 'invoice')
+        if order_data.get('shipping'):
+            shipping = self._fetch_odoo_partner(
+                integration,
+                order_data['shipping'],
+                OTHER,
+                customer.id if customer else False,
+            )
+
+        if order_data.get('billing'):
+            billing = self._fetch_odoo_partner(
+                integration,
+                order_data['billing'],
+                OTHER,
+                customer.id if customer else False,
+            )
+
+        return self._prepare_so_contacts(integration, customer, shipping, billing)
+
+    @api.model
+    def _prepare_so_contacts(self, integration, customer, shipping, billing):
+        if not customer:
+            if not integration.default_customer:
+                raise ApiImportError(_('Default Customer is empty. Please, feel it in '
+                                       'Sale Integration on the tab "Sale Order Defaults"'))
+
+            customer = integration.default_customer
+
+        if not shipping:
+            shipping = integration.default_customer
+
+        if not billing:
+            billing = integration.default_customer
 
         return customer, shipping, billing
 
     @api.model
-    def _create_partner(self, integration, partner_data, address_type=None):
-        try:
-            partner = self.env['res.partner'].from_external(
-                integration, partner_data['id']
-            )
-        except NotMappedFromExternal:
-            partner = None
-
+    def _find_odoo_country(self, integration, partner_data):
+        country = self.env['res.country']
         if partner_data.get('country'):
             country = self.env['res.country'].from_external(
                 integration, partner_data.get('country')
             )
-        else:
-            country = self.env['res.country']
+        elif partner_data.get('country_code'):
+            country = self.env['res.country'].search([
+                ('code', '=ilike', partner_data.get('country_code')),
+            ], limit=1)
+        return country
+
+    @api.model
+    def _find_odoo_state(self, integration, odoo_country, partner_data):
+        state = self.env['res.country.state']
+        if not state.search([('country_id', '=', odoo_country.id)]):
+            # If it is a Country without known states in Odoo let's skip this `finding`
+            return state
 
         if partner_data.get('state'):
-            state = self.env['res.country.state'].from_external(
-                integration, partner_data.get('state')
+            state = state.from_external(
+                integration,
+                partner_data.get('state'),
             )
-        else:
-            state = self.env['res.country.state']
+        elif partner_data.get('state_code') and odoo_country:
+            state = state.search([
+                ('country_id', '=', odoo_country.id),
+                ('code', '=ilike', partner_data.get('state_code')),
+            ], limit=1)
 
-        vals = {
+        return state
+
+    @api.model
+    def _create_or_update_odoo_partner(self,
+                                       integration,
+                                       ext_partner_code,
+                                       partner_vals,
+                                       parent_id=False):
+        partner = None
+        # If there is external code specified for Partner, then we first try to search
+        # by external code
+        if ext_partner_code:
+            partner = self.env['res.partner'].from_external(
+                integration,
+                ext_partner_code,
+                raise_error=False,
+            )
+
+        if partner:
+            partner_vals.pop('type', False)
+            partner.write(partner_vals)
+            return partner
+
+        # If no partner found, try to search by more complex criteria
+        # So if we found exact match then we want to associate this partner
+        # with external partner
+        search_criteria = []
+        if partner_vals.get('email'):
+            search_criteria.append(('email', '='))
+        elif partner_vals.get('phone'):
+            search_criteria.append(('phone', '='))
+
+        search_criteria += [
+            ('name', '=ilike'),
+            ('street', '=ilike'),
+            ('street2', '=ilike'),
+            ('city', '=ilike'),
+            ('zip', '=ilike'),
+            ('state_id', '='),
+            ('country_id', '='),
+        ]
+        domain = [
+            (key, op if partner_vals.get(key, False) else 'in',
+                partner_vals.get(key, ['', False])) for key, op in search_criteria
+        ]
+
+        partner = self.env['res.partner'].search(domain)
+
+        if partner:
+            if parent_id:
+                filter_partner = partner.filtered(lambda x: x.parent_id.id == parent_id)
+                partner = filter_partner or partner
+
+            if 'type' in partner_vals:
+                filter_partner = partner.filtered(lambda x: x.type == partner_vals['type'])
+                partner = filter_partner or partner
+
+            partner = partner[:1]
+
+        if partner:
+            # After search if found, update with new values,
+            # But we need to update ONLY if this partner has external code
+            # If not, it doesn't make sense to update it because it is some existing partner
+            if ext_partner_code:
+                partner.write(partner_vals)
+        else:
+            # We should set parent company ONLY for partners that are newly created partners
+            # To avoid breaking existing partners who maybe already linked to some another
+            # parent partner. Also, we allow to switch on and off linking of parent based
+            # on the integration
+            if parent_id and integration._should_link_parent_contact():
+                partner_vals['parent_id'] = parent_id
+
+            # This context is needed so partner will be created as customer
+            # So if we haven't defined exact type - this is the parent customer
+            # And it should be marked as customer (visible in Customer menu)
+            ctx = dict()
+            if 'type' not in partner_vals:
+                ctx['res_partner_search_mode'] = 'customer'
+
+            partner = self.env['res.partner'].with_context(**ctx).create(partner_vals)
+
+        # And finally create mapping in case of existing external code
+        # Because if we are here, previously we were not able to find partner
+        # by its mapping in external tables, so need to create one
+        if ext_partner_code:
+            partner.create_mapping(
+                integration,
+                ext_partner_code,
+                extra_vals={'name': partner_vals['name']},
+            )
+
+        return partner
+
+    @api.model
+    def _fetch_odoo_partner(self, integration, partner_data, address_type=None, parent_id=False):
+
+        partner_vals = {
             'name': partner_data['person_name'],
-            'street': partner_data.get('street'),
-            'street2': partner_data.get('street2'),
-            'city': partner_data.get('city'),
-            'country_id': country.id,
-            'state_id': state.id,
-            'zip': partner_data.get('zip'),
-            'email': partner_data.get('email'),
-            'phone': partner_data.get('phone'),
-            'mobile': partner_data.get('mobile'),
             'integration_id': integration.id,
         }
+
+        country = self._find_odoo_country(integration, partner_data)
+        if country:
+            partner_vals['country_id'] = country.id
+
+        state = self._find_odoo_state(integration, country, partner_data)
+        if state:
+            partner_vals['state_id'] = state.id
+
+        for key in ['street', 'street2', 'city', 'zip', 'email', 'phone', 'mobile']:
+            if partner_data.get(key):
+                partner_vals[key] = partner_data.get(key)
 
         if partner_data.get('language'):
             language = self.env['res.lang'].from_external(
                 integration, partner_data.get('language')
             )
             if language:
-                vals.update({
-                    'lang': language.code,
-                })
+                partner_vals['lang'] = language.code
 
         person_id_field = integration.customer_personal_id_field
         if person_id_field:
-            vals.update({
-                person_id_field.name: partner_data.get('person_id_number'),
-            })
+            partner_vals[person_id_field.name] = partner_data.get('person_id_number')
 
         if address_type:
-            vals['type'] = address_type
+            partner_vals['type'] = address_type
 
         # Adding Company Specific fields
         if partner_data.get('company_name'):
-            vals.update({
-                'company_name': partner_data.get('company_name'),
-            })
+            partner_vals['company_name'] = partner_data.get('company_name')
 
         company_vat_field = integration.customer_company_vat_field
         if company_vat_field and partner_data.get('company_reg_number'):
-            vals.update({
-                company_vat_field.name: partner_data.get('company_reg_number'),
-            })
+            partner_vals[company_vat_field.name] = partner_data.get('company_reg_number')
 
-        if partner:
-            partner.write(vals)
-        else:
-            partner = self.env['res.partner'].create(vals)
-            extra_vals = {'name': partner_data['person_name']}
-
-            partner.create_mapping(integration, partner_data['id'], extra_vals=extra_vals)
-
+        partner = self._create_or_update_odoo_partner(
+            integration,
+            partner_data.get('id'),
+            partner_vals,
+            parent_id,
+        )
         return partner
 
     @api.model
@@ -307,55 +456,49 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
         )
 
         if not product and raise_error:
-            raise ApiImportError(
-                _('Failed to find external variant with code "%s". Please, run "Import Master'
-                  ' Data" using button on "Initial Import" tab on your sales integration'
-                  ' with name "%s". After this make sure that all your products are mapped '
-                  'in "Mappings - Products" and "Mappings - '
-                  'Variants" menus.') % (variant_code, integration.name)
+            raise ApiImportError(_(
+                'Failed to find external variant with code "%s". Please, run "IMPORT PRODUCT '
+                'FROM EXTERNAL" using button on "Initial Import" tab on your sales integration '
+                'with name "%s". After this make sure that all your products are mapped '
+                'in "Mappings - Products" and "Mappings - '
+                'Variants" menus.') % (variant_code, integration.name)
             )
 
         return product
 
     @api.model
-    def _try_get_odoo_product(self, integration, variant_code):
-        product = self._get_odoo_product(integration, variant_code, True)
+    def _try_get_odoo_product(self, integration, line):
+        variant_code = line['product_id']
+        product = self._get_odoo_product(integration, variant_code, False)
 
-        # TODO: Implement auto-import product functionality (example below)
-        # if product:
-        #    return product
+        if product:
+            return product
 
         # Looks like this is new product in e-Commerce system
         # Or it is not fully mapped. In any case let's try to repeat mapping
         # for only this product and then try to find it again
         # If not found in this case, raise error
+        template_code = variant_code.split('-')[0]
+        integration.import_external_product(template_code)
 
-        # template_code = variant_code.split('-')[0]
-        # integration.import_and_try_map(template_code) # non-existing method here
-        # product = self._get_odoo_product(integration, variant_code, True)
+        product = self._get_odoo_product(integration, variant_code, True)
 
         return product
 
     @api.model
     def _prepare_order_line_vals(self, integration, line):
-        product = self._try_get_odoo_product(integration, line['product_id'])
+        product = self._try_get_odoo_product(integration, line)
 
         vals = {
-            'integration_external_id': line['id'],
             'product_id': product.id,
+            'integration_external_id': line['id'],
         }
 
         if 'product_uom_qty' in line:
             vals.update(product_uom_qty=line['product_uom_qty'])
 
-        taxes = self.env['account.tax'].browse()
-
-        if 'taxes' in line:
-            for tax_id in line['taxes']:
-                taxes |= self.env['account.tax'].from_external(
-                    integration, tax_id
-                )
-            vals.update(tax_id=[(6, 0, taxes.ids)])
+        taxes = self.get_taxes_from_external_list(integration, line['taxes'])
+        vals['tax_id'] = [(6, 0, taxes.ids)]
 
         if taxes and self._get_tax_price_included(taxes):
             if 'price_unit_tax_incl' in line:
@@ -369,112 +512,286 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
 
         return vals
 
+    def get_taxes_from_external_list(self, integration, external_tax_ids):
+        taxes = self.env['account.tax']
+
+        for external_tax_id in external_tax_ids:
+            taxes |= self.try_get_odoo_tax(integration, external_tax_id)
+
+        return taxes
+
+    def try_get_odoo_tax(self, integration, tax_id):
+        tax = tax = self.env['account.tax'].from_external(
+            integration,
+            tax_id,
+            raise_error=False,
+        )
+
+        if tax:
+            return tax
+
+        tax = integration._import_external_tax(tax_id)
+
+        if not tax:
+            raise ApiImportError(_(
+                'Failed to find external tax with code "%s". Please, run "IMPORT MASTER DATA" '
+                'using button on "Initial Import" tab on your sales integration "%s". '
+                'After this make sure that all your delivery carrier are mapped '
+                'in "Mappings - Taxes" menus.') % (tax_id, integration.name)
+            )
+
+        return tax
+
     @api.model
     def _post_create(self, integration, order):
-        if not integration.sale_order_auto_confirm:
-            return
-
-        try:
-            with self.env.cr.savepoint():
-                order.action_confirm()
-        except Exception as e:
-            exception_msg = str(e)
-            msg = f'Quotation wasn\'t confirmed because of Exception: {exception_msg}'
-            order.message_post(body=msg)
+        pass
 
     @api.model
     def _get_tax_price_included(self, taxes):
-        price_include = all([tax.price_include for tax in taxes])
+        price_include = all(tax.price_include for tax in taxes)
 
-        if not price_include and any([tax.price_include for tax in taxes]):
+        if not price_include and any(tax.price_include for tax in taxes):
             raise ApiImportError(_('One line has different Included In Price parameter in Taxes'))
 
+        # If True - the price includes taxes
         return price_include
+
+    def try_get_odoo_delivery_carrier(self, integration, carrier_data):
+        code = carrier_data['id']
+        carrier = self.env['delivery.carrier'].from_external(
+            integration,
+            code,
+            raise_error=False,
+        )
+        if carrier:
+            return carrier
+
+        carrier = integration._import_external_carrier(carrier_data)
+
+        if not carrier:
+            raise ApiImportError(_(
+                'Failed to find external carrier with code "%s". Please, run "IMPORT MASTER DATA" '
+                'using button on "Initial Import" tab on your sales integration "%s". '
+                'After this make sure that all your delivery carrier are mapped '
+                'in "Mappings - Shipping Methods" menus.') % (code, integration.name)
+            )
+
+        return carrier
+
+    def _create_delivery_line(self, integration, order, order_data):
+        if order_data['carrier'] and order_data['carrier'].get('id'):
+            carrier = self.try_get_odoo_delivery_carrier(integration, order_data['carrier'])
+            order.set_delivery_line(carrier, order_data['shipping_cost'])
+
+            delivery_line = order.order_line.filtered(lambda line: line.is_delivery)
+
+            if not delivery_line:
+                return
+
+            taxes = self.get_taxes_from_external_list(
+                integration,
+                order_data.get('carrier_tax_ids', []),
+            )
+            delivery_line.tax_id = [(6, 0, taxes.ids)]
+
+            if order_data.get('carrier_tax_rate') == 0:
+                if not all(x.amount == 0 for x in delivery_line.tax_id):
+                    delivery_line.tax_id = False
+
+            if 'shipping_cost_tax_excl' in order_data:
+                if not self._get_tax_price_included(delivery_line.tax_id):
+                    delivery_line.price_unit = order_data['shipping_cost_tax_excl']
+
+    def _create_gift_line(self, integration, order, order_data):
+        if order_data.get('gift_wrapping'):
+            if not integration.gift_wrapping_product_id:
+                raise ApiImportError(_('Gift Wrapping Product is empty. Please, feel it in '
+                                       'Sale Integration on the tab "Sale Order Defaults"'))
+
+            gift_taxes = self.get_taxes_from_external_list(
+                integration,
+                order_data.get('wrapping_tax_ids', []),
+            )
+
+            if self._get_tax_price_included(gift_taxes):
+                gift_price = order_data.get('total_wrapping_tax_incl', 0)
+            else:
+                gift_price = order_data.get('total_wrapping_tax_excl', 0)
+
+            gift_line = self.env['sale.order.line'].create({
+                'product_id': integration.gift_wrapping_product_id.id,
+                'order_id': order.id,
+                'tax_id': gift_taxes.ids,
+                'price_unit': gift_price,
+            })
+
+            if order_data.get('gift_message'):
+                gift_line.name += _('\nMessage to write: %s') % order_data.get('gift_message')
+
+    def _insert_line_in_order(self, integration, order, price_unit, tax_id):
+        line = self.env['sale.order.line'].create({
+            'product_id': integration.discount_product_id.id,
+            'order_id': order.id,
+        })
+        # This method fills name and other product info
+        line.product_id_change()
+
+        line.update({
+            'price_unit': price_unit,
+            'tax_id': tax_id and tax_id.ids or False,
+        })
+        return line
 
     def _create_discount_line(self, integration, order, discount_tax_incl, discount_tax_excl):
         if not discount_tax_incl or not discount_tax_excl:
             return
 
         if not integration.discount_product_id:
-            raise ApiImportError(_('Select Discount Product in Sale Integration'))
+            raise ApiImportError(_('Discount Product is empty. Please, feel it in '
+                                   'Sale Integration on the tab "Sale Order Defaults"'))
 
         precision = self.env['decimal.precision'].precision_get('Product Price')
 
-        discount_tax_incl = discount_tax_incl * -1
-        discount_tax_excl = discount_tax_excl * -1
-        discount_taxes = discount_tax_incl - discount_tax_excl
+        product_lines = order.order_line.filtered(lambda x: not x.is_delivery)
 
-        discount_line = self.env['sale.order.line'].create({
-            'product_id': integration.discount_product_id.id,
-            'order_id': order.id,
-        })
+        # Taxes must be with '-'
+        discount_taxes = discount_tax_excl - discount_tax_incl
 
-        discount_line.product_id_change()
-
-        # Discount without taxes
-        if float_is_zero(discount_taxes, precision_digits=precision):
-            discount_line.price_unit = discount_tax_excl
-            discount_line.tax_id = False
-            return
-
-        # if all taxes on product lines are the same then set tax from product line
-        product_lines = order.order_line.filtered(
-            lambda x: x.tax_id and not x.is_delivery and x.id != discount_line.id
-        )
-
-        if product_lines:
-            if all(product_lines[0].tax_id == x.tax_id for x in product_lines):
-                discount_line.tax_id = product_lines[0].tax_id
-
-        price_tax_included = self._get_tax_price_included(discount_line.tax_id)
-
-        if price_tax_included:
-            discount_line.price_unit = discount_tax_incl
+        if self._get_tax_price_included(product_lines.mapped('tax_id')):
+            discount_price = discount_tax_incl * -1
         else:
-            discount_line.price_unit = discount_tax_excl
+            discount_price = discount_tax_excl * -1
 
-        # Discount with taxes and was created correct
-        if float_compare(discount_line.price_tax, discount_taxes, precision_digits=precision) == 0:
+        discount_line = self._insert_line_in_order(integration, order, discount_price, False)
+
+        # 1. Discount without taxes
+        if float_is_zero(discount_taxes, precision_digits=precision):
             return
 
-        # The calculated taxes do not match the value from E-Commerce System
+        # 2. Try to find the most suitable tax.
+        #  Basically it's made for PrestaShop because it gives only discount with/without taxes
+        #  We try to understand whether discount applied to all lines, one line
+        #  or lines with identical taxes by the minimal calculated tax difference.
+        #  Otherwise we apply discount to all lines
+        #  TODO For Other shops we should make with taxes from discount in order data
+
+        # 2.1 Group lines by taxes
+        all_grouped_taxes = {}
+        grouped_taxes = {}
+        line_taxes = {}
+        all_lines_sum = 0
+
+        for line in product_lines:
+            tax_key = str(line.tax_id)
+            line_key = str(line.id)
+            all_lines_sum += line.price_subtotal
+
+            grouped_taxes.update({tax_key: {
+                'tax_id': line.tax_id,
+                'discount': discount_price,
+            }})
+            line_taxes.update({line_key: {
+                'tax_id': line.tax_id,
+                'discount': discount_price,
+            }})
+            all_grouped_taxes.update({tax_key: {
+                'price_subtotal': (line.price_subtotal +
+                                   grouped_taxes.get(tax_key, {}).get('price_subtotal', 0)),
+                'tax_id': line.tax_id,
+            }})
+
+        # 2.2 Distribution of the amount to different tax groups
+        all_grouped_taxes = [grouped_tax for grouped_tax in all_grouped_taxes.values()]
+        residual_amount = discount_price
+        line_num = len(all_grouped_taxes)
+
+        for tax_value in all_grouped_taxes:
+            if line_num == 1:
+                tax_value['discount'] = residual_amount
+            else:
+                tax_value['discount'] = float_round(
+                    value=discount_price * tax_value['price_subtotal'] / all_lines_sum,
+                    precision_digits=precision
+                )
+
+            residual_amount -= tax_value['discount']
+            line_num -= 1
+
+        # 2.3 Calculate tax difference for different combinations
+        def calc_tax_summa(tax_values):
+            tax_amount = 0
+
+            for tax_value in tax_values:
+                discount_line.tax_id = tax_value['tax_id']
+                discount_line.price_unit = tax_value['discount']
+                tax_amount += discount_line.price_tax
+
+            return {
+                'grouped_taxes': tax_values,
+                'tax_diff': abs(tax_amount - discount_taxes),
+            }
+
+        # discount taxes for all
+        calc_taxes = [calc_tax_summa(all_grouped_taxes)]
+        # discount taxes one by one for tax groups
+        calc_taxes += [calc_tax_summa([grouped_tax]) for grouped_tax in grouped_taxes.values()]
+        # discount taxes one by one for line
+        calc_taxes += [calc_tax_summa([line_tax]) for line_tax in line_taxes.values()]
+
+        # 2.4 Get tax with MINIMAL difference
+        # If price difference > 1% then apply discount to all taxes
+        calc_taxes.sort(key=lambda calc_tax: calc_tax['tax_diff'])
+
+        if abs(calc_taxes[0]['tax_diff'] / discount_taxes) < 0.01:
+            the_most_suitable_discount = calc_taxes[0]['grouped_taxes']
+        else:
+            the_most_suitable_discount = all_grouped_taxes
+
+        # Delete old delivery line
+        discount_line.unlink()
+
+        discount_lines = self.env['sale.order.line']
+
+        # 2.5 Create discount lines for discount
+        for tax_value in the_most_suitable_discount:
+            discount_lines += self._insert_line_in_order(
+                integration,
+                order,
+                tax_value['discount'],
+                tax_value['tax_id']
+            )
+
+        # 3. If count of discount lines = 1 and tax incorrect then try to improve tax.
+        # All differences of discount without tax will go to the Difference line.
+        # if there are more than 1 discount line we don't know what line to fix
+        if len(discount_lines) != 1:
+            return
+
+        if float_compare(discount_lines.price_tax, discount_taxes, precision_digits=precision) == 0:
+            return
+
+        # 3.1 The calculated taxes do not match the value from E-Commerce System
         # Try to pick up the values of discount with taxes
-        discount_line.price_unit = (
-            discount_line.price_unit * discount_taxes / discount_line.price_tax
+        discount_lines.price_unit = (
+            discount_lines.price_unit * discount_taxes / discount_lines.price_tax
         )
 
-        difference = discount_line.price_tax - discount_taxes
+        difference = discount_lines.price_tax - discount_taxes
 
         min_price = 10 ** (-1 * precision)
 
         # If difference = 1 cent try to plus/minus several cents to make the values the same
-        # It may happened when taxes >50%
+        # It may happen when taxes >50%
         if float_compare(abs(difference), min_price, precision_digits=precision) == 0:
             for x in range(10):
-                discount_line.price_unit -= difference
+                discount_lines.price_unit -= difference
 
                 if float_compare(
-                    discount_line.price_tax,
+                    discount_lines.price_tax,
                     discount_taxes,
                     precision_digits=precision
                 ) == 0:
                     break
-
-        # # If taxes are still wrong then delete discount
-        # if float_compare(discount_line.price_tax, discount_taxes, precision_digits=precision)!=0:
-        #     discount_line.unlink()
-        #     _logger.warning('Failed discount creation in Sale Order ID %s ' % order.id)
-        #     return
-
-        # If taxes are correct then create another one line without taxes
-        discount_line2 = self.env['sale.order.line'].create({
-            'product_id': integration.discount_product_id.id,
-            'order_id': order.id,
-        })
-
-        discount_line2.product_id_change()
-        discount_line2.tax_id = False
-        discount_line2.price_unit = discount_tax_incl - discount_line.price_total
 
     def _add_payment_transactions(self, order, integration, payment_transactions):
         if not payment_transactions or not integration.import_payments:
@@ -516,14 +833,11 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
 
             # Get Payment journal based on the payment method
             external_payment_method = order.payment_method_id.to_external_record(integration)
-            mapping_pay_method = self.env['integration.sale.order.payment.method.mapping'].search([
-                ('integration_id', '=', integration.id),
-                ('external_payment_method_id', '=', external_payment_method.id),
-            ])
-            if not mapping_pay_method.payment_journal_id:
-                raise ApiImportError(
+
+            if not external_payment_method.payment_journal_id:
+                raise UserError(
                     _('No Payment Journal defined for Payment Method "%s". '
-                      'Please, define it in menu "e-Commerce Integration -> Mappings -> '
+                      'Please, define it in menu "e-Commerce Integration -> Auto-Workflow -> '
                       'Payment Methods" in the "Payment Journal" column')
                     % order.payment_method_id.name
                 )
@@ -533,7 +847,7 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
                 "payment_type": 'inbound' if transaction['amount'] > 0.0 else 'outbound',
                 "partner_type": "customer",
                 "ref": transaction['transaction_id'],
-                "journal_id": mapping_pay_method.payment_journal_id.id,
+                "journal_id": external_payment_method.payment_journal_id.id,
                 "currency_id": currency_id,
                 "partner_id": order.partner_invoice_id.commercial_partner_id.id,
                 "payment_method_id": self.env.ref(
@@ -561,30 +875,11 @@ class IntegrationSaleOrderFactory(models.AbstractModel):
 
             if not payment_method:
                 payment_method = PaymentMethod.create({
-                    'integration_id': integration.id,
                     'name': ext_payment_method,
+                    'integration_id': integration.id,
                 })
-
+            extra_vals = {'name': ext_payment_method}
             self.env['integration.sale.order.payment.method.mapping'].create_integration_mapping(
-                integration, payment_method, ext_payment_method)
+                integration, payment_method, ext_payment_method, extra_vals)
 
         return payment_method
-
-    def _apply_shipping_tax(self, integration, order_data, order):
-        delivery_line = order.order_line.filtered(lambda line: line.is_delivery)
-
-        taxes = self.env['account.tax']
-
-        for tax_code in order_data.get('shipping_tax', []):
-            taxes |= self._retrieve_from_external(integration, tax_code)
-
-        delivery_line.write({
-            'tax_id': [(6, 0, taxes.ids)],
-        })
-
-    def _retrieve_from_external(self, integration, tax_code):
-        tax = self.env['account.tax'].from_external(
-            integration,
-            tax_code,
-        )
-        return tax

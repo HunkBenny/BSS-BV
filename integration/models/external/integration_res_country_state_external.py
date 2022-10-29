@@ -1,6 +1,6 @@
 # See LICENSE file for full copyright and licensing details.
 
-from odoo import models, api
+from odoo import models
 
 import logging
 import re
@@ -12,6 +12,7 @@ class IntegrationResCountryStateExternal(models.Model):
     _name = 'integration.res.country.state.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Res Country State External'
+    _odoo_model = 'res.country.state'
 
     def _get_state_domain(self, code, integration):
         state_domain = None
@@ -40,8 +41,10 @@ class IntegrationResCountryStateExternal(models.Model):
 
         return state_domain
 
-    def try_map_by_external_reference(self, odoo_model, odoo_search_domain=False):
+    def try_map_by_external_reference(self, odoo_search_domain=False):
         self.ensure_one()
+
+        odoo_model = self.odoo_model
         odoo_state = odoo_model.from_external(self.integration_id,
                                               self.code,
                                               raise_error=False)
@@ -51,10 +54,9 @@ class IntegrationResCountryStateExternal(models.Model):
         state_domain = self._get_state_domain(self.external_reference, self.integration_id)
         if state_domain:
             super(IntegrationResCountryStateExternal, self).\
-                try_map_by_external_reference(odoo_model, state_domain)
+                try_map_by_external_reference(odoo_search_domain=state_domain)
 
-    @api.model
-    def fix_unmapped(self, integration):
+    def _fix_unmapped(self, adapter_external_data):
         # odoo has bug (depending on the version) that they use incorrect ISO Codes fro below states
         # [IN_UT] Uttarakhand -> in Odoo it is IN_UK
         # [IN_CT] Chhattisgarh -> in Odoo it is IN_CG
@@ -67,11 +69,12 @@ class IntegrationResCountryStateExternal(models.Model):
             'IN_TG': 'IN_TS',
             'MX_AGS': 'MX_AGU',
         }
+        integration = self.integration_id
         problematic_states = self.search([
             ('integration_id', '=', integration.id),
             ('external_reference', 'in', list(fixing_mapping.keys()))
         ])
-        odoo_model = self.env['res.country.state']
+        odoo_model = self.odoo_model
         for problematic_state in problematic_states:
             odoo_value_code = fixing_mapping[problematic_state.external_reference]
             mapping = self.env['integration.res.country.state.mapping'].search([

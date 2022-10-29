@@ -27,6 +27,7 @@ class TemplateConverter:
             'type': template.type,
             'kits': self._get_kits(template),
             'products': [x.to_export_format(self._integration) for x in variants],
+            'variant_count': len(variants),
         }
 
         search_domain = Template._template_ecommerce_field_domain(self._integration, external_id)
@@ -67,6 +68,7 @@ class TemplateConverter:
 
                 component_list.append({
                     'qty': bom_line.product_qty,
+                    'name': bom_line.display_name,
                     'product_id': external_record.code,
                     'external_reference': external_record.external_reference,
                 })

@@ -323,6 +323,8 @@ class ProductTemplate(models.Model):
                     identity_key=key,
                     description='Export Template',
                 )
+                if not integration.allow_export_images:
+                    export_images = False
                 delayable.export_template(template, export_images=export_images)
 
     def validate_in_odoo(self, integration):

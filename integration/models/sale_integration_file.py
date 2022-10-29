@@ -139,7 +139,7 @@ class SaleIntegrationInputFile(models.Model):
             try:
                 input_file.display_data = json.dumps(
                     self.with_context(bin_size=False).to_dict(),
-                    indent='    '
+                    indent=4,
                 )
             except json.decoder.JSONDecodeError:
                 input_file.display_data = {}
@@ -156,7 +156,7 @@ class SaleIntegrationInputFile(models.Model):
 
     def process(self):
         self.ensure_one()
-        self.env['sale.integration'].trigger_create_order(self)
+        return self.env['sale.integration'].trigger_create_order(self)
 
     def to_dict(self):
         self.ensure_one()
@@ -169,8 +169,10 @@ class SaleIntegrationInputFile(models.Model):
 
     def process_no_job(self):
         self.ensure_one()
-        if self.order_id:
-            return self.order_id
-
         integration = self.si_id
-        integration.create_order_from_input(self)
+        return integration.create_order_from_input(self)
+
+    def run_export_tracking_no_job(self):
+        if not self.order_id:
+            return False
+        return self.order_id.picking_ids._run_integration_picking_hooks()

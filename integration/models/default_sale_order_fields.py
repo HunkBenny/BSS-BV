@@ -30,13 +30,26 @@ class SaleIntegration(models.Model):
 
         return values
 
+    so_external_reference_field = fields.Many2one(
+        string='Additional SO Number field on Sales Order',
+        comodel_name='ir.model.fields',
+        ondelete='cascade',
+        help='Define here field name belonging to Sales Order (only Char and '
+             'Text fields accepted) where integration will place sales order number'
+             ' in addition to existing "External Sales Order Ref" field.',
+        required=False,
+        domain='[("store", "=", True), '
+               '("model_id.model", "=", "sale.order"), '
+               '("ttype", "in", ("text", "char")) ]',
+    )
+
     so_delivery_note_field = fields.Many2one(
         string='Delivery Note field on Sales Order',
         comodel_name='ir.model.fields',
         ondelete='cascade',
         help='Define here field name belonging to Sales Order (only Char and '
              'Text fields accepted) where integration will place Delivery Note'
-             ' text that is downloaded from target e-commerce system. THis value '
+             ' text that is downloaded from target e-commerce system. This value '
              'is defaulting to the value defined in e-Commerce tab on Sales Order.'
              ' But it is allowed to define any field even from 3rd-party modules.',
         required=True,
@@ -61,7 +74,7 @@ class SaleIntegration(models.Model):
     )
 
     default_sales_team_id = fields.Many2one(
-        string='Default Sales Team',
+        string='Force Sales Team',
         comodel_name='crm.team',
         help='If set, this Sales Team will be automatically set to all '
              'Sales Orders coming from the e-Commerce System',
@@ -70,7 +83,7 @@ class SaleIntegration(models.Model):
     )
 
     default_sales_person_id = fields.Many2one(
-        string='Default Sales Person',
+        string='Force Sales Person',
         comodel_name='res.users',
         help='Sales Person to be assigned to new orders by default.',
         check_company=True,
@@ -106,4 +119,9 @@ class SaleIntegration(models.Model):
         domain='[("store", "=", True), '
                '("model_id.model", "=", "res.partner"), '
                '("ttype", "=", "char") ]',
+    )
+
+    default_customer = fields.Many2one(
+        string='Default Customer',
+        comodel_name='res.partner',
     )

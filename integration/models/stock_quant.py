@@ -31,11 +31,11 @@ class StockQuant(models.Model):
 
             variant_integrations = template.product_variant_ids.mapped('integration_ids')
             required_integrations = integrations.filtered(lambda x: x in variant_integrations)
+            products = template.product_variant_ids
 
             for integration in required_integrations:
                 key = f'export_inventory_{integration.id}_{template.id}'
-                integration = integration.with_context(company_id=integration.company_id.id)
-                integration.with_delay(identity_key=key).export_inventory(template)
+                products.export_inventory_by_jobs(integration, key)
 
     def _get_templates_to_export_inventory(self):
         return (

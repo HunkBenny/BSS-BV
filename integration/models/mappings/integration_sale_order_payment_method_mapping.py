@@ -13,18 +13,10 @@ class IntegrationSaleOrderPaymentMethodMapping(models.Model):
         comodel_name='sale.order.payment.method',
         ondelete='cascade',
     )
-
     external_payment_method_id = fields.Many2one(
         comodel_name='integration.sale.order.payment.method.external',
         required=True,
         ondelete='cascade',
-    )
-
-    payment_journal_id = fields.Many2one(
-        "account.journal",
-        "Payment Journal",
-        required=False,
-        domain=[("type", "in", ("bank", "cash"))],
     )
 
     _sql_constraints = [

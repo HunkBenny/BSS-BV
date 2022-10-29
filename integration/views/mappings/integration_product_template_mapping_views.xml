@@ -34,7 +34,7 @@
             <field name="name">Products</field>
             <field name="res_model">integration.product.template.mapping</field>
             <field name="view_mode">tree</field>
-            <field name="context">{'search_default_not_mapped': 1}</field>
+            <field name="context">{'search_default_not_mapped': 1, 'product_template_mapping': 1}</field>
         </record>
 
         <record id="integration_product_template_mapping_action_run_import_products" model="ir.actions.server">
@@ -44,6 +44,15 @@
             <field name="binding_view_types">list</field>
             <field name="state">code</field>
             <field name="code">action = records.run_import_products(import_images=True)</field>
+        </record>
+
+        <record id="integration_product_template_mapping_action_try_map_products" model="ir.actions.server">
+            <field name="name">Try Map Products</field>
+            <field name="model_id" ref="integration.model_integration_product_template_mapping"/>
+            <field name="binding_model_id" ref="integration.model_integration_product_template_mapping"/>
+            <field name="binding_view_types">list</field>
+            <field name="state">code</field>
+            <field name="code">[x.integration_id.import_external_product(x.external_template_id.code) for x in records]</field>
         </record>
 
     </data>

@@ -2,7 +2,7 @@
 
 {
     'name': 'Integration',
-    'version': '15.0.1.6.0',
+    'version': '15.0.1.8.2',
     'category': 'Hidden',
     'author': 'VentorTech',
     'website': 'https://ventor.tech',
@@ -25,8 +25,10 @@
         # data
         'data/queue_job_channel_data.xml',
         'data/queue_job_function_data.xml',
+        'data/ir_config_parameter_data.xml',
 
         # Wizard
+        'wizard/import_customers_wizard.xml',
         'wizard/import_stock_levels_wizard.xml',
         'wizard/message_wizard.xml',
         'wizard/configuration_wizard.xml',
@@ -46,8 +48,9 @@
         'views/product_feature_views.xml',
         'views/product_feature_value_views.xml',
         'views/queue_job.xml',
+        'views/res_partner_views.xml',
 
-        # external
+        # External
         'views/external/integration_account_tax_group_external_views.xml',
         'views/external/integration_account_tax_external_views.xml',
         'views/external/integration_product_attribute_external_views.xml',
@@ -65,7 +68,8 @@
         'views/external/integration_res_partner_external_views.xml',
         'views/external/integration_sale_order_external_views.xml',
         'views/external/integration_sale_order_sub_status_external_views.xml',
-        # mappings
+
+        # Mappings
         'views/mappings/integration_account_tax_mapping_views.xml',
         'views/mappings/integration_product_attribute_mapping_views.xml',
         'views/mappings/integration_product_attribute_value_mapping_views.xml',
@@ -87,8 +91,14 @@
         'views/fields/product_ecommerce_field.xml',
         'views/fields/product_ecommerce_field_mapping.xml',
 
+        # Auto work-flow views
+        'views/auto_workflow/integration_sale_order_sub_status_external_views.xml',
+        'views/auto_workflow/integration_sale_order_payment_method_external_views.xml',
+        'views/auto_workflow/integration_workflow_pipeline_views.xml',
+
         # Menu items
         'views/sale_integration_menu.xml',
+        'views/auto_workflow/menu.xml',
         'views/external/menu.xml',
         'views/mappings/menu.xml',
         'views/fields/menu.xml',

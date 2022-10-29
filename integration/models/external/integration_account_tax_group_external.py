@@ -2,6 +2,7 @@
 
 from odoo import models, fields, _
 from odoo.exceptions import UserError
+from odoo.tools.sql import escape_psql
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -12,6 +13,7 @@ class IntegrationAccountTaxGroupExternal(models.Model):
     _inherit = 'integration.external.mixin'
     _description = 'Integration Account Tax Group External'
     _order = 'sequence, id'
+    _odoo_model = 'account.tax.group'
 
     sequence = fields.Integer(
         string='Priority',
@@ -33,9 +35,10 @@ class IntegrationAccountTaxGroupExternal(models.Model):
         string='Default External Tax',
     )
 
-    def try_map_by_external_reference(self, odoo_model, odoo_search_domain=False):
+    def try_map_by_external_reference(self, odoo_search_domain=False):
         self.ensure_one()
 
+        odoo_model = self.odoo_model
         # If we found existing mapping, we do not need to do anything
         if odoo_model.from_external(self.integration_id, self.code, raise_error=False):
             return
@@ -45,8 +48,8 @@ class IntegrationAccountTaxGroupExternal(models.Model):
     def import_tax_group(self, external_values):
         self.ensure_one()
 
-        TaxGroup = self.env['account.tax.group']
-        MappingTaxGroup = self.env['integration.account.tax.group.mapping']
+        TaxGroup = self.odoo_model
+        MappingTaxGroup = self.mapping_model
 
         # Try to find existing and mapped tax group
         mapping = MappingTaxGroup.search([('external_tax_group_id', '=', self.id)])
@@ -54,7 +57,7 @@ class IntegrationAccountTaxGroupExternal(models.Model):
 
         # If mapping doesn`t exists try to find tax group by the name
         if not mapping or not mapping.tax_group_id:
-            if TaxGroup.search([('name', '=ilike', self.name)]):
+            if TaxGroup.search([('name', '=ilike', escape_psql(self.name))]):
                 raise UserError(_('Tax group with name "%s" already exists') % self.name)
         else:
             odoo_tax_group = mapping.tax_group_id

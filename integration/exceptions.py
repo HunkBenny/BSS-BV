@@ -10,6 +10,16 @@ class NotMappedFromExternal(Exception):
         super(NotMappedFromExternal, self).__init__(msg)
 
 
+class NotMappedFromExternalMulti(Exception):
+    def __init__(self, msg, model_name=None, records=None, integration=None):
+        if model_name and records:
+            msg = (
+                '%s(code=%s, integration=%s) \n%s' % (model_name, records, str(integration.id), msg)
+            )
+
+        super(NotMappedFromExternalMulti, self).__init__(msg)
+
+
 class NotMappedToExternal(Exception):
 
     def __init__(self, msg, model_name=None, obj_id=None, integration=None):

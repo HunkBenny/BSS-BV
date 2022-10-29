@@ -23,7 +23,12 @@ class SaleIntegrationAPIFields(models.Model):
         string='API Service',
         ondelete='cascade',
     )
-    eval = fields.Boolean()
+    eval = fields.Boolean(
+        string='Eval',
+    )
+    is_secure = fields.Boolean(
+        string='Is Secure',
+    )
 
     def get_eval_globals(self):
         self.ensure_one()
@@ -47,6 +52,7 @@ class SaleIntegrationAPIFields(models.Model):
                 'description': field.description,
                 'value': value,
                 'eval': field.eval,
+                'is_secure': field.is_secure,
             }
 
         return sia_fields

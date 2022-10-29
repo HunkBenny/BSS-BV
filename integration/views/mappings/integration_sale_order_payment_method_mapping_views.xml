@@ -10,7 +10,6 @@
                     <field name="integration_id"/>
                     <field name="payment_method_id" required="1"/>
                     <field name="external_payment_method_id"/>
-                    <field name="payment_journal_id"/>
                 </tree>
             </field>
         </record>

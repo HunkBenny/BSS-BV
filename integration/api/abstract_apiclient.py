@@ -2,9 +2,11 @@
 
 from __future__ import absolute_import
 
+from odoo import _
+
 from abc import ABCMeta, abstractmethod
-import logging
 from six import with_metaclass
+import logging
 
 _logger = logging.getLogger(__name__)
 
@@ -28,9 +30,28 @@ class AbsApiClient(with_metaclass(ABCMeta)):
         value = self._settings['fields'][key]['value']
         return value
 
+    def _truncate_settings_url(self):
+        full_settings_url = self.get_settings_value('url')
+
+        # Cut off `https://`
+        settings_url_list = full_settings_url.strip('/').split('//')
+        settings_url = settings_url_list[-1]
+
+        # Get `host` only
+        settings_url_list = settings_url.split('/')
+        settings_url = settings_url_list[0]
+
+        if settings_url.startswith('www.'):
+            settings_url = settings_url.lstrip('www.')
+        return settings_url
+
     @property
     def integration_name(self):
         return self._integration_name
+
+    @property
+    def integration(self):
+        return self._env['sale.integration'].browse(self._integration_id)
 
     @abstractmethod
     def check_connection(self):
@@ -89,11 +110,19 @@ class AbsApiClient(with_metaclass(ABCMeta)):
         return
 
     @abstractmethod
+    def get_product_template_ids(self):
+        return
+
+    @abstractmethod
     def get_product_templates(self):
         return
 
     @abstractmethod
-    def get_product_variants(self):
+    def get_customer_ids(self, date_since=None):
+        return
+
+    @abstractmethod
+    def get_customer_and_addresses(self, customer_id):
         return
 
     @abstractmethod
@@ -194,7 +223,7 @@ class AbsApiClient(with_metaclass(ABCMeta)):
         return
 
     @abstractmethod
-    def export_tracking(self, tracking_data):
+    def export_tracking(self, sale_order_id, tracking_data_list):
         return
 
     @abstractmethod
@@ -219,4 +248,14 @@ class AbsApiClient(with_metaclass(ABCMeta)):
 
     @abstractmethod
     def get_products_for_accessories(self):
+        return
+
+    def create_webhooks_from_routes(self, routes_dict):
+        return dict()
+
+    def unlink_existing_webhooks(self, external_ids=None):
+        return _('Not Implemented!')
+
+    @abstractmethod
+    def _convert_to_html(self, id_list):
         return

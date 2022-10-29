@@ -23,7 +23,14 @@
                         <button name="process_no_job"
                                 type="object"
                                 string="Process"
-                                attrs="{'invisible': ['|', ('state', '!=', 'draft'), ('id', '=', False)]}"
+                                attrs="{'invisible': ['|', ('state', '=', 'done'), ('id', '=', False)]}"
+                                class="btn-primary"
+                                groups="base.group_no_one"
+                        />
+                        <button name="run_export_tracking_no_job"
+                                type="object"
+                                string="Export Tracking"
+                                attrs="{'invisible': ['|', ('order_reference', 'not in', (False, '')), ('order_id', '=', False)]}"
                                 class="btn-primary"
                                 groups="base.group_no_one"
                         />

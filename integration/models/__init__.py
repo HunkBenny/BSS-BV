@@ -5,6 +5,7 @@ from . import integration_model_mixin
 from . import external
 from . import mappings
 from . import fields
+from . import auto_workflow
 
 from . import ir_module
 from . import product_image
@@ -17,6 +18,7 @@ from . import product_feature
 from . import product_feature_value
 from . import product_template_feature_line
 from . import product_public_category
+from . import integration_webhook_line
 from . import sale_integration
 from . import sale_integration_api_field
 from . import sale_integration_file

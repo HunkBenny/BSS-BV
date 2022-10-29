@@ -1,6 +1,6 @@
 # See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields, api, _
+from odoo import models, fields, _
 from odoo.exceptions import UserError
 
 import logging
@@ -12,6 +12,7 @@ class IntegrationProductProductExternal(models.Model):
     _name = 'integration.product.product.external'
     _inherit = 'integration.external.mixin'
     _description = 'Integration Product Product External'
+    _odoo_model = 'product.product'
 
     external_product_template_id = fields.Many2one(
         comodel_name='integration.product.template.external',
@@ -23,7 +24,7 @@ class IntegrationProductProductExternal(models.Model):
     def import_stock_levels(self, qty, location):
         self.ensure_one()
 
-        variant = self.env['integration.product.product.mapping'].to_odoo(
+        variant = self.mapping_model.to_odoo(
             integration=self.integration_id,
             code=self.code,
         )
@@ -62,67 +63,9 @@ class IntegrationProductProductExternal(models.Model):
         inventory_quant.inventory_quantity = float(qty)
         inventory_quant.action_apply_inventory()
 
-    @api.model
-    def fix_unmapped(self, integration):
-        # Map unmapped templates
-        ProductMapping = self.env['integration.product.product.mapping']
-        ProductExternal = self.env['integration.product.product.external']
-        TemplateMapping = self.env['integration.product.template.mapping']
-        TemplateExternal = self.env['integration.product.template.external']
-
-        product_mappings = ProductMapping.search([
-            ('integration_id', '=', integration.id),
-            ('product_id', '!=', False),
-        ])
-
-        for product_mapping in product_mappings:
-            template = product_mapping.product_id.product_tmpl_id
-
-            template_mapping = TemplateMapping.search([
-                ('integration_id', '=', integration.id),
-                ('template_id', '=', template.id),
-            ])
-
-            if not template_mapping:
-                template_code = product_mapping.external_product_id.code.split('-')[0]
-                template_external = TemplateExternal.get_external_by_code(
-                    integration,
-                    template_code,
-                    raise_error=False
-                )
-
-                if template_external:
-                    TemplateMapping.create_or_update_mapping(
-                        integration,
-                        template,
-                        template_external
-                    )
-
-        # Create external products (XXX-0) and map it
-        template_mappings = TemplateMapping.search([
-            ('integration_id', '=', integration.id),
-            ('template_id', '!=', False),
-        ])
-
-        for template_mapping in template_mappings:
-            template_external = template_mapping.external_template_id
-            variant = template_mapping.template_id.product_variant_ids
-
-            product_external = ProductExternal.search([
-                ('integration_id', '=', integration.id),
-                ('code', '=like', template_external.code + '-%'),
-            ])
-
-            if not product_external and len(variant) == 1:
-                product_external = ProductExternal.create({
-                    'integration_id': integration.id,
-                    'code': template_external.code + '-0',
-                    'name': template_external.name,
-                    'external_reference': template_external.external_reference,
-                })
-
-                if product_external:
-                    ProductMapping.create_or_update_mapping(integration, variant, product_external)
+    def _fix_unmapped(self, adapter_external_data):
+        # We can't use this method, because products are imported by blocks
+        pass
 
     def _post_import_external_one(self, adapter_external_record):
         """

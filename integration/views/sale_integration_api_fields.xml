@@ -10,7 +10,8 @@
                     <group>
                         <field name="name" />
                         <field name="description" />
-                        <field name="value" />
+                        <field name="value" attrs="{'readonly': [('is_secure', '=', True)], 'invisible': [('is_secure', '=', True)]}" />
+                        <field name="is_secure" readonly="1" />
                         <field name="eval" />
                     </group>
                 </form>
@@ -22,10 +23,11 @@
             <field name="model">sale.integration.api.field</field>
             <field name="arch" type="xml">
                 <tree string="Sale Integration API Fields" editable="bottom">
-                        <field name="name" />
-                        <field name="description" />
-                        <field name="value" />
-                        <field name="eval" />
+                    <field name="is_secure" invisible="1" />
+                    <field name="name" />
+                    <field name="description" />
+                    <field name="value" attrs="{'readonly': [('is_secure', '=', True)], 'invisible': [('is_secure', '=', True)]}" />
+                    <field name="eval" />
                 </tree>
             </field>
         </record>

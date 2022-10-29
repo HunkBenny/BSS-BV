@@ -1,6 +1,6 @@
 # See LICENSE file for full copyright and licensing details.
 
-from ...exceptions import NotMappedFromExternal, NotMappedToExternal
+from ...exceptions import NotMappedFromExternal, NotMappedToExternal, NotMappedFromExternalMulti
 from odoo import models, api, fields, _
 
 
@@ -140,6 +140,17 @@ class IntegrationMappingMixin(models.AbstractModel):
         return self._search_mapping_from_external(integration, external)
 
     def _search_mapping_from_external(self, integration, external):
+        if not external:
+            return self.browse()
+
+        if len(external) > 1:
+            raise NotMappedFromExternalMulti(
+                _('Can\'t map from multiple external to odoo'),
+                self._name,
+                external,
+                integration,
+            )
+
         __, external_field_name = self._mapping_fields
 
         mapping = self.search([

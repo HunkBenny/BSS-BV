@@ -4,6 +4,7 @@ from ...exceptions import NoReferenceFieldDefined, NoExternal, ApiImportError
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 from odoo.osv import expression
+from odoo.tools.sql import escape_psql
 
 import logging
 
@@ -19,6 +20,7 @@ RESULT_NOT_IN_EXTERNAL = 5
 class IntegrationExternalMixin(models.AbstractModel):
     _name = 'integration.external.mixin'
     _description = 'Integration External Mixin'
+    _odoo_model = None
 
     integration_id = fields.Many2one(
         comodel_name='sale.integration',
@@ -53,6 +55,16 @@ class IntegrationExternalMixin(models.AbstractModel):
             'External Reference should be unique',
         ),
     ]
+
+    @property
+    def odoo_model(self):
+        assert bool(self._odoo_model), 'Class attribute `_odoo_model` not defined'
+        return self.env[self._odoo_model]
+
+    @property
+    def mapping_model(self):
+        assert bool(self._odoo_model), 'Class attribute `_odoo_model` not defined'
+        return self.env[f'integration.{self._odoo_model}.mapping']
 
     def write(self, vals):
         result = super().write(vals)
@@ -103,7 +115,7 @@ class IntegrationExternalMixin(models.AbstractModel):
     @api.model
     def _name_search(self, name='', args=None, operator='ilike', limit=100, name_get_uid=None):
         args = args or []
-        if operator == 'ilike' and not(name or '').strip():
+        if operator == 'ilike' and not (name or '').strip():
             domain = []
         else:
             domain = ['|', ('name', operator, name), ('code', operator, name)]
@@ -112,8 +124,19 @@ class IntegrationExternalMixin(models.AbstractModel):
             expression.AND([domain, args]), limit=limit, access_rights_uid=name_get_uid,
         )
 
-    def try_map_by_external_reference(self, odoo_model, odoo_search_domain=False):
+    def _map_external(self, adapter_external_data):
+        if not self:
+            return False
+
+        for rec in self:
+            rec.try_map_by_external_reference()
+
+        return self._fix_unmapped(adapter_external_data)
+
+    def try_map_by_external_reference(self, odoo_search_domain=False):
         self.ensure_one()
+
+        odoo_model = self.odoo_model
         reference_field_name = getattr(odoo_model, '_internal_reference_field', None)
         if not reference_field_name:
             raise NoReferenceFieldDefined(
@@ -131,7 +154,7 @@ class IntegrationExternalMixin(models.AbstractModel):
 
         odoo_object = None
         if self.external_reference:
-            search_domain = [(reference_field_name, '=ilike', self.external_reference)]
+            search_domain = [(reference_field_name, '=ilike', escape_psql(self.external_reference))]
             # We can redefine domain if we need it
             if odoo_search_domain:
                 search_domain = odoo_search_domain
@@ -142,8 +165,7 @@ class IntegrationExternalMixin(models.AbstractModel):
 
         odoo_model.create_or_update_mapping(self.integration_id, odoo_object, self)
 
-    @api.model
-    def fix_unmapped(self, integration):
+    def _fix_unmapped(self, adapter_external_data):
         # Method that should be overriden in needed external models
         pass
 
@@ -288,6 +310,9 @@ class IntegrationExternalMixin(models.AbstractModel):
 
         return odoo_object
 
+    def _pre_import_external_check(self, external_record, integration):
+        return True
+
     def _post_import_external_one(self, adapter_external_record):
         """It's a hook method for redefining."""
         pass
@@ -346,12 +371,12 @@ class IntegrationExternalMixin(models.AbstractModel):
             # 5. Get "Product Attribute/Feature Value" by Name
             product_element_value = ElementValue.search([
                 (f'{element}_id', '=', value.id),
-                ('name', '=ilike', external_element_value.name),
+                ('name', '=ilike', escape_psql(external_element_value.name)),
             ])
 
             if product_element_value and len(product_element_value) == 1:
                 # 6. Set attribute_value_id or feature_value_id
-                setattr(mapped_element_values, element + '_value_id', product_element_value)
+                setattr(mapped_element_value, element + '_value_id', product_element_value)
 
     def _post_import_external_element(self, adapter_external_record, element):
         """
@@ -399,7 +424,7 @@ class IntegrationExternalMixin(models.AbstractModel):
         if element_mapping:
             element_record = getattr(element_mapping, f'{element}_id')
 
-        odoo_object = ProductElement.search([('name', '=', self.name)])
+        odoo_object = ProductElement.search([('name', '=ilike', escape_psql(self.name))])
 
         # 1.2. Check by Name that attribute/feature already exists in Odoo
         if odoo_object and not element_record:
@@ -448,7 +473,7 @@ class IntegrationExternalMixin(models.AbstractModel):
 
             element_value = ProductElementValue.search([
                 (f'{element}_id', '=', element_record.id),
-                ('name', '=ilike', name),
+                ('name', '=ilike', escape_psql(name)),
             ])
 
             if element_value:
