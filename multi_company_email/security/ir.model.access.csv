@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+user_multi_company_email,user_multi_company_email,model_user_company_email,,1,1,1,1
+user_company_email_wizard,user_company_email_wizard,model_user_company_email_wizard,,1,1,1,1
+user_res_users_signature,user_res_users_signature,model_res_users_signature,,1,1,1,1

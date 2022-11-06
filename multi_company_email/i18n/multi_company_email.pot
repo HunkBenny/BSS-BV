@@ -1,0 +1,48 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* multi_company_email
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 13.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-04-02 17:19+0000\n"
+"PO-Revision-Date: 2020-04-02 17:19+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: multi_company_email
+#: model:ir.model.fields,field_description:multi_company_email.field_res_partner__company_dependent_email
+#: model:ir.model.fields,field_description:multi_company_email.field_res_users__company_dependent_email
+msgid "Company Dependent Email"
+msgstr ""
+
+#. module: multi_company_email
+#: model:ir.model,name:multi_company_email.model_res_partner
+msgid "Contact"
+msgstr ""
+
+#. module: multi_company_email
+#: model:ir.model.fields,field_description:multi_company_email.field_res_partner__email
+#: model:ir.model.fields,field_description:multi_company_email.field_res_users__email
+msgid "Email"
+msgstr ""
+
+#. module: multi_company_email
+#: model:ir.model.fields,field_description:multi_company_email.field_res_users__signature
+msgid "Email Signature"
+msgstr ""
+
+#. module: multi_company_email
+#: model:ir.model.fields,field_description:multi_company_email.field_res_users__signature_text
+msgid "Signature Text"
+msgstr ""
+
+#. module: multi_company_email
+#: model:ir.model,name:multi_company_email.model_res_users
+msgid "Users"
+msgstr ""
