@@ -1,0 +1,205 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* sh_so_po
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 14.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-08-12 06:08+0000\n"
+"PO-Revision-Date: 2021-08-12 06:08+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order__sh_purchase_count
+msgid "# of Purchases"
+msgstr "购物数量"
+
+#. module: sh_so_po
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_purchase_order_wizard
+msgid "Cancel"
+msgstr "取消"
+
+#. module: sh_so_po
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_purchase_order_wizard
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_so_po_inherit_sale_form
+msgid "Create Purchase Order"
+msgstr "创建采购订单"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__create_uid
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__create_uid
+msgid "Created by"
+msgstr "由...制作"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__create_date
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__create_date
+msgid "Created on"
+msgstr "创建于"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__name
+msgid "Description"
+msgstr "描述"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order__display_name
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__display_name
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__display_name
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order__display_name
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order_line__display_name
+msgid "Display Name"
+msgstr "显示名称"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order__id
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__id
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__id
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order__id
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order_line__id
+msgid "ID"
+msgstr "ID"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order____last_update
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard____last_update
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard____last_update
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order____last_update
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order_line____last_update
+msgid "Last Modified on"
+msgstr "最后修改了"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__write_uid
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__write_uid
+msgid "Last Updated by"
+msgstr "最后更新"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__write_date
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__write_date
+msgid "Last Updated on"
+msgstr "上次更新了"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__order_line
+msgid "Order Lines"
+msgstr "订单线"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__order_selection
+msgid "Order Selection"
+msgstr "订单选择"
+
+#. module: sh_so_po
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_purchase_order_wizard
+msgid "Please Select vendor and hit 'Create Purchase Order' button"
+msgstr "请选择供应商并点击“创建采购订单”按钮"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__product_id
+msgid "Product"
+msgstr "产品"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__product_uom
+msgid "Product Unit of Measure"
+msgstr "产品单位"
+
+#. module: sh_so_po
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_so_po_inherit_sale_form
+msgid "Purchase"
+msgstr "购买"
+
+#. module: sh_so_po
+#: model:ir.model,name:sh_so_po.model_purchase_order
+#: model:ir.model.fields.selection,name:sh_so_po.selection__purchase_order_wizard__order_selection__order
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_purchase_order_wizard
+msgid "Purchase Order"
+msgstr "采购订单"
+
+#. module: sh_so_po
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_purchase_order_wizard
+msgid "Purchase Order Lines"
+msgstr "采购订单线"
+
+#. module: sh_so_po
+#: model:ir.model,name:sh_so_po.model_purchase_order_wizard
+msgid "Purchase Order Wizard"
+msgstr "采购订单巫师"
+
+#. module: sh_so_po
+#: model:ir.model,name:sh_so_po.model_purchase_order_line_wizard
+msgid "Purchase Order line Wizard"
+msgstr "采购订单行向导"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__product_qty
+msgid "Quantity"
+msgstr "数量"
+
+#. module: sh_so_po
+#: model:ir.model.fields.selection,name:sh_so_po.selection__purchase_order_wizard__order_selection__rfq
+msgid "RFQ"
+msgstr "RFQ."
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order__sh_sale_order_id
+msgid "Sale Order"
+msgstr "销售订单"
+
+#. module: sh_so_po
+#: model:ir.model,name:sh_so_po.model_sale_order
+msgid "Sales Order"
+msgstr "销售订单"
+
+#. module: sh_so_po
+#: model:ir.model,name:sh_so_po.model_sale_order_line
+msgid "Sales Order Line"
+msgstr "销售订单线"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__date_planned
+msgid "Scheduled Date"
+msgstr "约定的日期"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_sale_order_line__tick
+msgid "Select Product"
+msgstr "选择产品"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__price_subtotal
+msgid "Subtotal"
+msgstr "小计"
+
+#. module: sh_so_po
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_so_po_inherit_sale_form
+msgid "Tick/Untick"
+msgstr "勾选/不奇特"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__price_unit
+msgid "Unit Price"
+msgstr "单价"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_wizard__partner_id
+msgid "Vendor"
+msgstr "小贩"
+
+#. module: sh_so_po
+#: model:ir.model.fields,field_description:sh_so_po.field_purchase_order_line_wizard__wizard_id
+msgid "Wizard"
+msgstr "巫师"
+
+#. module: sh_so_po
+#: model_terms:ir.ui.view,arch_db:sh_so_po.sh_purchase_order_wizard
+msgid "or"
+msgstr "或者"
