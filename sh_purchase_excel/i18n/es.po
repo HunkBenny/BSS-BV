@@ -1,0 +1,190 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* sh_purchase_excel
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 14.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-03-15 11:36+0000\n"
+"PO-Revision-Date: 2021-03-15 11:36+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+msgid "<b>Do you want to print Purchase Order Report?</b>"
+msgstr "<b>¿Quiere imprimir el informe de la orden de compra?</b>"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "<b>Do you want to print Purchase Quotation Report?</b>"
+msgstr "<b>¿Quiere imprimir el informe de cotización de compra?</b>"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "Cancel"
+msgstr "Cancelar"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_quotation_report_view
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_report_view
+msgid "Close"
+msgstr "Cerrar"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__create_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__create_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__create_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__create_uid
+msgid "Created by"
+msgstr "Creado por"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__create_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__create_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__create_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__create_date
+msgid "Created on"
+msgstr "Creado en"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__display_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__display_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__display_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__display_name
+msgid "Display Name"
+msgstr "Nombre para mostrar"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "Download Xls"
+msgstr "Descarga Xls"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__excel_file
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__excel_file
+msgid "Download report Excel"
+msgstr "Descargar informe Excel"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__file_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__file_name
+msgid "Excel File"
+msgstr "Archivo Excel"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__id
+msgid "ID"
+msgstr "IDENTIFICACIÓN"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended____last_update
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report____last_update
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended____last_update
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report____last_update
+msgid "Last Modified on"
+msgstr "Última modificación el"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__write_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__write_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__write_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__write_uid
+msgid "Last Updated by"
+msgstr "Actualizado por última vez por"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__write_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__write_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__write_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__write_date
+msgid "Last Updated on"
+msgstr "Ultima actualización en"
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_quotation_report
+msgid "Purchase Quotation Report"
+msgstr "Informe de cotización de compra"
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_excel_extended
+msgid "Purchase Excel Extended"
+msgstr "Compra Excel extendida"
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__purchase_order_id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__purchase_order_id
+msgid "Purchase Order"
+msgstr "Orden de compra"
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_view_purchase_order_xls_report
+msgid "Purchase Order Excel Report"
+msgstr "Informe de orden de compra en Excel"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_report_view
+msgid "Purchase Order Merge Excel Report"
+msgstr "Informe de Excel de fusión de órdenes de compra"
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_order_report
+msgid "Purchase Order Report"
+msgstr "Informe de orden de compra"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+msgid "Purchase Order Xls Report"
+msgstr "Informe Xls de orden de compra"
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_quotation_excel_extended
+msgid "Purchase Quotation Excel Extended"
+msgstr "Cotización de compra Excel Extendida"
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_view_purchase_quotation_xls_report
+msgid "Purchase Quotation Excel Report"
+msgstr "Informe Excel de cotización de compra"
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_purchase_quotation_excel_form
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_quotation_report_view
+msgid "Purchase Quotation Merge Excel Report"
+msgstr "Informe de Excel de fusión de cotización de compra"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_quotation_report_view
+msgid "Purchase Quotation Report"
+msgstr "Informe de cotización de compra"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "Purchase Quotation Xls Report"
+msgstr "Informe Xls de cotización de compra"
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_purchase_excel_form
+msgid "Reports Excel"
+msgstr "Informes Excel"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_report_view
+msgid "Xls Report"
+msgstr "Informe XLS"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "or"
+msgstr "o"

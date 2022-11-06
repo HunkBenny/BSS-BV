@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="sh_requisition_details_report_wizard_form" model="ir.ui.view">
+        <field name="name">sh.purchase.requisition.details.report.wizard.form</field>
+        <field name="model">sh.purchase.requisition.details.report.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Call for Tenders Details">
+                <group>
+                    <button name="print_journal_entries_xls_report" string="Download Call for Tenders Xls Report" type="object" class="oe_highlight" />
+                </group>
+                <footer>
+                    <button string="Close" class="oe_highlight" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="sh_requisition_details_report_wizard_form_action" model="ir.actions.act_window">
+        <field name="name">Call for Tenders Xlsx Report</field>
+        <field name="res_model">sh.purchase.requisition.details.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <record id="action_requisition_xls_entry" model="ir.actions.server">
+        <field name="name">Call for Tenders Xlsx Report</field>
+        <field name="model_id" ref="purchase_requisition.model_purchase_requisition" />
+        <field name="binding_model_id" ref="purchase_requisition.model_purchase_requisition" />
+        <field name="state">code</field>
+        <field name="code">action = records.action_requisition_xls_entry()</field>
+    </record>
+</odoo>

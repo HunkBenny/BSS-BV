@@ -1,0 +1,190 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* sh_purchase_excel
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 14.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-03-15 11:36+0000\n"
+"PO-Revision-Date: 2021-03-15 11:36+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+msgid "<b>Do you want to print Purchase Order Report?</b>"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "<b>Do you want to print Purchase Quotation Report?</b>"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "Cancel"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_quotation_report_view
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_report_view
+msgid "Close"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__create_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__create_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__create_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__create_uid
+msgid "Created by"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__create_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__create_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__create_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__create_date
+msgid "Created on"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__display_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__display_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__display_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__display_name
+msgid "Display Name"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "Download Xls"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__excel_file
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__excel_file
+msgid "Download report Excel"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__file_name
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__file_name
+msgid "Excel File"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__id
+msgid "ID"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended____last_update
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report____last_update
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended____last_update
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report____last_update
+msgid "Last Modified on"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__write_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__write_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__write_uid
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__write_uid
+msgid "Last Updated by"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_excel_extended__write_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__write_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_excel_extended__write_date
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__write_date
+msgid "Last Updated on"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_quotation_report
+msgid "Purchase Quotation Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_excel_extended
+msgid "Purchase Excel Extended"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_order_report__purchase_order_id
+#: model:ir.model.fields,field_description:sh_purchase_excel.field_purchase_quotation_report__purchase_order_id
+msgid "Purchase Order"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_view_purchase_order_xls_report
+msgid "Purchase Order Excel Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_report_view
+msgid "Purchase Order Merge Excel Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_order_report
+msgid "Purchase Order Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+msgid "Purchase Order Xls Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.model,name:sh_purchase_excel.model_purchase_quotation_excel_extended
+msgid "Purchase Quotation Excel Extended"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_view_purchase_quotation_xls_report
+msgid "Purchase Quotation Excel Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_purchase_quotation_excel_form
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_quotation_report_view
+msgid "Purchase Quotation Merge Excel Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_quotation_report_view
+msgid "Purchase Quotation Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "Purchase Quotation Xls Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model:ir.actions.act_window,name:sh_purchase_excel.action_purchase_excel_form
+msgid "Reports Excel"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.xls_purchase_report_view
+msgid "Xls Report"
+msgstr ""
+
+#. module: sh_purchase_excel
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_order_report
+#: model_terms:ir.ui.view,arch_db:sh_purchase_excel.view_purchase_quotation_report
+msgid "or"
+msgstr ""
