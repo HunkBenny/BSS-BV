@@ -17,6 +17,10 @@ Change Log
 
 |
 
+* 1.8.3 (2022-11-07)
+    - Added compatibility with partner_firstname module from OCA
+    - Fixed import of gift line
+
 * 1.8.2 (2022-10-28)
     - Fixed Feature Value creation
     - Fixed “Import External Records“ running for Product Variants from Jobs

@@ -72,7 +72,7 @@ class IntegrationWorkflowPipelineLine(models.Model):
         order_method_name = f'_integration_{self.current_step_method}'
         order_method = getattr(self.order_id, order_method_name)
 
-        result = order_method()
+        result, __ = order_method()
 
         self.state = DONE if result is True else FAILED
         return self.pipeline_id.open_form()

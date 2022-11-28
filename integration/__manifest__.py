@@ -2,7 +2,7 @@
 
 {
     'name': 'Integration',
-    'version': '15.0.1.8.2',
+    'version': '15.0.1.8.3',
     'category': 'Hidden',
     'author': 'VentorTech',
     'website': 'https://ventor.tech',

@@ -346,22 +346,22 @@ class IntegrationProductTemplateExternal(models.Model):
                 upd_template.pop('product_template_image_ids')
 
         # Create Features
-        for feature_line in ext_template.get('product_features', []):
-            feature = ProductFeature
-            feature_value = ProductFeatureValue
-
-            if feature_line['feature_id'] != IS_FALSE:
-                feature = ProductFeature.from_external(integration, feature_line['feature_id'])
-
-            if feature_line['feature_value_id'] != IS_FALSE:
-                feature_value = ProductFeatureValue.from_external(
-                    integration, feature_line['feature_value_id'])
-
-            if feature and feature_value:
-                upd_template['feature_line_ids'].append((0, 0, {
-                    'feature_id': feature.id,
-                    'feature_value_id': feature_value.id,
-                }))
+#        for feature_line in ext_template.get('product_features', []):
+#            feature = ProductFeature
+#            feature_value = ProductFeatureValue
+#
+#            if feature_line['feature_id'] != IS_FALSE:
+#                feature = ProductFeature.from_external(integration, feature_line['feature_id'])
+#
+#            if feature_line['feature_value_id'] != IS_FALSE:
+#                feature_value = ProductFeatureValue.from_external(
+#                    integration, feature_line['feature_value_id'])
+#
+#            if feature and feature_value:
+#                upd_template['feature_line_ids'].append((0, 0, {
+#                    'feature_id': feature.id,
+#                    'feature_value_id': feature_value.id,
+#                }))
 
         template = template.with_context(skip_product_export=True)
 
